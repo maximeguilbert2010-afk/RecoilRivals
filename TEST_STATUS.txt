@@ -1,0 +1,14 @@
+RECOIL RIVALS PROTOTYPE TEST STATUS
+
+Validated in a 390x844 Chromium mobile viewport:
+- Main menu renders
+- PLAY opens stage select
+- Stage 1 launches
+- Canvas game loop starts
+- Recoil/tap firing runs
+- 10 level definitions loaded
+- Pistol, Revolver, Shotgun loaded
+- No JavaScript page errors during tested navigation/gameplay
+
+Android project is complete enough to open/build with Android Studio.
+This execution environment does not include the Android SDK/Gradle build tools and cannot download them, so an APK could not be compiled locally here.
