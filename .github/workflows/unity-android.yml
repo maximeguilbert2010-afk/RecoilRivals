@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [ main ]
+
 jobs:
   build:
     name: Unity Android
@@ -14,6 +15,16 @@ jobs:
         with:
           fetch-depth: 0
           lfs: true
+
+      # FAST PRE-FLIGHT: verify Unity credentials/license BEFORE cache/build work.
+      # If UNITY_EMAIL / UNITY_PASSWORD / UNITY_LICENSE are wrong, the job stops here.
+      - name: Check Unity login and license FIRST
+        uses: game-ci/unity-activate@2e3cdcc04786759a46afc5a7427f4585a3023131
+        timeout-minutes: 3
+        env:
+          UNITY_LICENSE: ${{ secrets.UNITY_LICENSE }}
+          UNITY_EMAIL: ${{ secrets.UNITY_EMAIL }}
+          UNITY_PASSWORD: ${{ secrets.UNITY_PASSWORD }}
 
       - name: Cache Unity Library
         uses: actions/cache@v4
