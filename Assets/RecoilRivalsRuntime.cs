@@ -61,6 +61,9 @@ namespace RecoilRivals
         Material enemyMat, enemyFastMat, enemyHeavyMat, enemyShotgunMat;
         Material playerBulletMat, enemyBulletMat, glowMat;
 
+        [SerializeField] public Material runtimeLitTemplate;
+        [SerializeField] public Material runtimeTrailTemplate;
+
         readonly List<EnemyUnit> enemies = new List<EnemyUnit>();
         readonly Vector2[] enemySpots = {
             new Vector2(2.30f, 4.55f), new Vector2(-2.20f, 2.60f),
@@ -583,16 +586,46 @@ namespace RecoilRivals
 
         Material MakeMaterial(Color color,float emission)
         {
-            Shader shader=Shader.Find("Universal Render Pipeline/Lit");if(shader==null)shader=Shader.Find("Standard");
-            var m=new Material(shader);if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",color);if(m.HasProperty("_Color"))m.SetColor("_Color",color);
-            if(m.HasProperty("_Smoothness"))m.SetFloat("_Smoothness",.58f);if(m.HasProperty("_Metallic"))m.SetFloat("_Metallic",.28f);
-            if(emission>0&&m.HasProperty("_EmissionColor")){m.EnableKeyword("_EMISSION");m.SetColor("_EmissionColor",color*emission);}return m;
+            Material source = runtimeLitTemplate;
+            GameObject temp = null;
+
+            if (source == null)
+            {
+                // Last-resort fallback to Unity's built-in primitive material. This avoids
+                // constructing a Material with a null shader on Android.
+                temp = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                var renderer = temp.GetComponent<Renderer>();
+                source = renderer != null ? renderer.sharedMaterial : null;
+            }
+
+            if (source == null)
+                throw new InvalidOperationException("No runtime material template is available.");
+
+            var m = new Material(source);
+            if (temp != null) Destroy(temp);
+
+            if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",color);
+            if(m.HasProperty("_Color"))m.SetColor("_Color",color);
+            if(m.HasProperty("_Smoothness"))m.SetFloat("_Smoothness",.58f);
+            if(m.HasProperty("_Metallic"))m.SetFloat("_Metallic",.28f);
+            if(emission>0&&m.HasProperty("_EmissionColor"))
+            {
+                m.EnableKeyword("_EMISSION");
+                m.SetColor("_EmissionColor",color*emission);
+            }
+            return m;
         }
 
         Material MakeTrailMaterial(Color color)
         {
-            Shader shader=Shader.Find("Universal Render Pipeline/Unlit");if(shader==null)shader=Shader.Find("Sprites/Default");
-            var m=new Material(shader);if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",color);if(m.HasProperty("_Color"))m.SetColor("_Color",color);return m;
+            Material source = runtimeTrailTemplate != null ? runtimeTrailTemplate : runtimeLitTemplate;
+            if (source == null)
+                return MakeMaterial(color, 0f);
+
+            var m = new Material(source);
+            if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",color);
+            if(m.HasProperty("_Color"))m.SetColor("_Color",color);
+            return m;
         }
 
         AudioClip MakeTone(string name,float seconds,float frequency,float volume,bool noisy)

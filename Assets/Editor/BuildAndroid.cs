@@ -13,6 +13,34 @@ namespace RecoilRivals.Editor
     {
         private const string BundleId = "com.recoilrivals.game";
 
+        private static Material GetOrCreateMaterial(string path, string[] shaderNames)
+        {
+            Material existing = AssetDatabase.LoadAssetAtPath<Material>(path);
+            Shader shader = null;
+
+            foreach (string shaderName in shaderNames)
+            {
+                shader = Shader.Find(shaderName);
+                if (shader != null) break;
+            }
+
+            if (shader == null)
+                throw new InvalidOperationException("Could not find a supported shader for " + path);
+
+            if (existing == null)
+            {
+                existing = new Material(shader);
+                AssetDatabase.CreateAsset(existing, path);
+            }
+            else if (existing.shader != shader)
+            {
+                existing.shader = shader;
+                EditorUtility.SetDirty(existing);
+            }
+
+            return existing;
+        }
+
         [MenuItem("Recoil Rivals/Build Android APK")]
         public static void PerformBuild()
         {
@@ -37,9 +65,23 @@ namespace RecoilRivals.Editor
                 UnityEngine.Object.DestroyImmediate(root);
 
             var runtimeRoot = new GameObject("RECOIL_RIVALS_RUNTIME");
-            runtimeRoot.AddComponent<RecoilRivals.RecoilRivalsGame>();
+            var runtime = runtimeRoot.AddComponent<RecoilRivals.RecoilRivalsGame>();
+
+            const string generatedFolder = "Assets/Generated";
+            if (!AssetDatabase.IsValidFolder(generatedFolder))
+                AssetDatabase.CreateFolder("Assets", "Generated");
+
+            runtime.runtimeLitTemplate = GetOrCreateMaterial(
+                generatedFolder + "/RR_RuntimeLit.mat",
+                new[] { "Universal Render Pipeline/Lit", "Universal Render Pipeline/Simple Lit", "Standard" });
+
+            runtime.runtimeTrailTemplate = GetOrCreateMaterial(
+                generatedFolder + "/RR_RuntimeTrail.mat",
+                new[] { "Universal Render Pipeline/Unlit", "Unlit/Color", "Sprites/Default" });
+
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
+            AssetDatabase.SaveAssets();
 
             string[] scenes = EditorBuildSettings.scenes
                 .Where(scene => scene.enabled && File.Exists(scene.path))
