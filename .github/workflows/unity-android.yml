@@ -2,7 +2,8 @@ name: Build Unity Android APK
 
 on:
   workflow_dispatch:
-
+  push:
+    branches: [ main ]
 jobs:
   build:
     name: Unity Android
