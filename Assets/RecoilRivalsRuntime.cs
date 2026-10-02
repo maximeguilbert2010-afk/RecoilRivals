@@ -30,7 +30,7 @@ namespace RecoilRivals
 
     public static class RRBootstrap
     {
-        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        // Legacy bootstrap intentionally disabled. The V2 controller is embedded directly in the build scene.
         static void Boot()
         {
             if (UnityEngine.Object.FindFirstObjectByType<RecoilRivalsGame>() != null) return;

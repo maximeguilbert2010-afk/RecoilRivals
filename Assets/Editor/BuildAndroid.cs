@@ -64,20 +64,8 @@ namespace RecoilRivals.Editor
             foreach (var root in scene.GetRootGameObjects())
                 UnityEngine.Object.DestroyImmediate(root);
 
-            var runtimeRoot = new GameObject("RECOIL_RIVALS_RUNTIME");
-            var runtime = runtimeRoot.AddComponent<RecoilRivals.RecoilRivalsGame>();
-
-            const string generatedFolder = "Assets/Generated";
-            if (!AssetDatabase.IsValidFolder(generatedFolder))
-                AssetDatabase.CreateFolder("Assets", "Generated");
-
-            runtime.runtimeLitTemplate = GetOrCreateMaterial(
-                generatedFolder + "/RR_RuntimeLit.mat",
-                new[] { "Universal Render Pipeline/Lit", "Universal Render Pipeline/Simple Lit", "Standard" });
-
-            runtime.runtimeTrailTemplate = GetOrCreateMaterial(
-                generatedFolder + "/RR_RuntimeTrail.mat",
-                new[] { "Universal Render Pipeline/Unlit", "Unlit/Color", "Sprites/Default" });
+            var runtimeRoot = new GameObject("RECOIL_RIVALS_V2_RUNTIME");
+            runtimeRoot.AddComponent<RecoilRivals2.RRGameV2>();
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
