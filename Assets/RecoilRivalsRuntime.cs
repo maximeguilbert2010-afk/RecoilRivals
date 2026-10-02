@@ -73,27 +73,67 @@ namespace RecoilRivals
         Vector3 cameraHome;
         bool finishing;
 
+        string startupError;
+
         void Awake()
         {
-            Application.targetFrameRate = 120;
-            QualitySettings.vSyncCount = 0;
-            Screen.orientation = ScreenOrientation.Portrait;
-            Physics2D.gravity = new Vector2(0f, -9.81f);
+            DontDestroyOnLoad(gameObject);
+            try
+            {
+                // Remove the untouched Unity template immediately so a startup error can never
+                // silently leave the sample scene looking like the game loaded correctly.
+                RemoveTemplateScene();
 
-            currentLevel = Mathf.Clamp(PlayerPrefs.GetInt("RR_Level", 1), 1, 10);
-            coins = Mathf.Max(0, PlayerPrefs.GetInt("RR_Coins", 0));
-            selectedWeapon = Mathf.Clamp(PlayerPrefs.GetInt("RR_Weapon", 0), 0, 2);
+                Application.targetFrameRate = 120;
+                QualitySettings.vSyncCount = 0;
+                Screen.orientation = ScreenOrientation.Portrait;
+                Physics2D.gravity = new Vector2(0f, -9.81f);
 
-            Weapons = new[] {
-                new RRWeaponStats("STARTER PISTOL", 1f, .24f, 3.35f, 8.5f, 15f, 1, 0f, 0),
-                new RRWeaponStats("REVOLVER", 2f, .48f, 5.3f, 13f, 18f, 1, 0f, 1),
-                new RRWeaponStats("SHOTGUN", .7f, .70f, 7.4f, 17f, 13f, 5, 13f, 0)
-            };
+                currentLevel = Mathf.Clamp(PlayerPrefs.GetInt("RR_Level", 1), 1, 10);
+                coins = Mathf.Max(0, PlayerPrefs.GetInt("RR_Coins", 0));
+                selectedWeapon = Mathf.Clamp(PlayerPrefs.GetInt("RR_Weapon", 0), 0, 2);
 
-            CreateAssets();
-            RemoveTemplateScene();
-            CreateCameraLightAndUI();
-            ShowMenu();
+                Weapons = new[] {
+                    new RRWeaponStats("STARTER PISTOL", 1f, .24f, 3.35f, 8.5f, 15f, 1, 0f, 0),
+                    new RRWeaponStats("REVOLVER", 2f, .48f, 5.3f, 13f, 18f, 1, 0f, 1),
+                    new RRWeaponStats("SHOTGUN", .7f, .70f, 7.4f, 17f, 13f, 5, 13f, 0)
+                };
+
+                CreateAssets();
+                CreateCameraLightAndUI();
+                ShowMenu();
+            }
+            catch (Exception ex)
+            {
+                startupError = ex.ToString();
+                Debug.LogException(ex);
+                EnsureFallbackCamera();
+            }
+        }
+
+        void EnsureFallbackCamera()
+        {
+            if (Camera.main != null) return;
+            var c = new GameObject("RR Fallback Camera");
+            c.tag = "MainCamera";
+            cam = c.AddComponent<Camera>();
+            c.AddComponent<AudioListener>();
+            cam.clearFlags = CameraClearFlags.SolidColor;
+            cam.backgroundColor = new Color(.015f, .02f, .03f);
+            cam.transform.position = new Vector3(0, 0, -10);
+            DontDestroyOnLoad(c);
+        }
+
+        void OnGUI()
+        {
+            if (string.IsNullOrEmpty(startupError)) return;
+            GUI.color = new Color(.08f, .08f, .10f, .98f);
+            GUI.Box(new Rect(20, 60, Screen.width - 40, Screen.height - 120), GUIContent.none);
+            GUI.color = Color.white;
+            var style = new GUIStyle(GUI.skin.label) { fontSize = Mathf.Max(20, Screen.width / 32), wordWrap = true };
+            style.normal.textColor = new Color(1f, .45f, .40f);
+            GUI.Label(new Rect(45, 90, Screen.width - 90, Screen.height - 180),
+                "RECOIL RIVALS STARTUP ERROR\n\n" + startupError, style);
         }
 
         void CreateAssets()

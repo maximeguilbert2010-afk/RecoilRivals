@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.Build;
-using UnityEditor.Build.Reporting;
+using UnityEditor.Build.Reporting;\nusing UnityEditor.SceneManagement;
 using UnityEngine;
 
 namespace RecoilRivals.Editor
@@ -20,6 +20,25 @@ namespace RecoilRivals.Editor
             string apkPath = Path.Combine(outputDirectory, "RecoilRivals.apk");
 
             Directory.CreateDirectory(outputDirectory);
+
+            // Put the runtime controller directly in the build scene. This avoids relying only
+            // on RuntimeInitializeOnLoadMethod on mobile/IL2CPP.
+            string startupScene = EditorBuildSettings.scenes
+                .Where(scene => scene.enabled && File.Exists(scene.path))
+                .Select(scene => scene.path)
+                .FirstOrDefault();
+
+            if (string.IsNullOrEmpty(startupScene))
+                throw new InvalidOperationException("No enabled startup scene was found.");
+
+            var scene = EditorSceneManager.OpenScene(startupScene, OpenSceneMode.Single);
+            foreach (var root in scene.GetRootGameObjects())
+                UnityEngine.Object.DestroyImmediate(root);
+
+            var runtimeRoot = new GameObject("RECOIL_RIVALS_RUNTIME");
+            runtimeRoot.AddComponent<RecoilRivals.RecoilRivalsGame>();
+            EditorSceneManager.MarkSceneDirty(scene);
+            EditorSceneManager.SaveScene(scene);
 
             string[] scenes = EditorBuildSettings.scenes
                 .Where(scene => scene.enabled && File.Exists(scene.path))
