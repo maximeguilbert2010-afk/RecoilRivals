@@ -331,7 +331,7 @@ namespace RecoilRivals2
             o.anchoredPosition=new Vector2(r.center.x*ArenaPixelSize().x*.5f,r.center.y*ArenaPixelSize().y*.5f);
             o.localRotation=Quaternion.Euler(0,0,angle);
             var stripe=AddImage(o,"Energy Edge",new Vector2(.02f,.72f),new Vector2(.98f,.96f),new Color(.12f,.82f,.72f,.78f),rounded);
-            stripe.raycastTarget=false;
+            stripe.GetComponent<Image>().raycastTarget=false;
         }
 
         void SpawnEnemies(int l)
