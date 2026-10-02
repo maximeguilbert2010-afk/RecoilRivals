@@ -23,7 +23,7 @@ jobs:
           lfs: true
 
       - name: Find Unity and verify Android support
-        shell: pwsh
+        shell: powershell
         run: |
           $preferred = "C:\Program Files\Unity\Hub\Editor\6000.6.4f1\Editor\Unity.exe"
 
@@ -50,7 +50,7 @@ jobs:
           Write-Host "Android support: OK"
 
       - name: Build Android APK
-        shell: pwsh
+        shell: powershell
         run: |
           $log = Join-Path $env:RUNNER_TEMP "recoil-rivals-unity-build.log"
           & "$env:UNITY_EXE" `
