@@ -53,20 +53,24 @@ jobs:
         shell: powershell
         run: |
           $log = Join-Path $env:RUNNER_TEMP "recoil-rivals-unity-build.log"
-          & "$env:UNITY_EXE" `
-            -batchmode `
-            -nographics `
-            -quit `
-            -projectPath "$env:GITHUB_WORKSPACE" `
-            -buildTarget Android `
-            -executeMethod RecoilRivals.Editor.BuildAndroid.PerformBuild `
-            -stackTraceLogType Full `
-            -logFile "$log"
 
-          $exitCode = $LASTEXITCODE
+          $unityArgs = @(
+            "-batchmode",
+            "-nographics",
+            "-quit",
+            "-projectPath", ('"' + $env:GITHUB_WORKSPACE + '"'),
+            "-buildTarget", "Android",
+            "-executeMethod", "RecoilRivals.Editor.BuildAndroid.PerformBuild",
+            "-stackTraceLogType", "Full",
+            "-logFile", ('"' + $log + '"')
+          )
+
+          Write-Host "Starting Unity and waiting for the build to finish..."
+          $process = Start-Process -FilePath $env:UNITY_EXE -ArgumentList $unityArgs -Wait -PassThru
+          $exitCode = $process.ExitCode
 
           if (Test-Path $log) {
-            Get-Content $log -Tail 300
+            Get-Content $log -Tail 400
           }
 
           if ($exitCode -ne 0) {
