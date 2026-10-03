@@ -94,6 +94,12 @@ namespace RecoilRivals2
         bool menuDragging;
         float lastPinchDistance;
 
+        GameObject gameplay3DRoot;
+        Camera gameplayWeaponCamera;
+        Transform gameplayWeaponPivot;
+        Transform gameplayWeaponModel;
+        float gameplayWeaponKick;
+
         readonly List<Enemy> enemies = new List<Enemy>();
         readonly List<Bullet> bullets = new List<Bullet>();
         readonly List<Fx> effects = new List<Fx>();
@@ -223,6 +229,7 @@ namespace RecoilRivals2
                 float dt = Mathf.Min(Time.deltaTime, .035f);
                 if (!resolving && FirePressed()) FirePlayer();
                 UpdatePlayer(dt);
+                UpdateGameplayWeapon3D(dt);
                 UpdateEnemies(dt);
                 UpdateBullets(dt);
                 UpdateEffects(dt);
@@ -348,7 +355,7 @@ namespace RecoilRivals2
             obstacles.Clear();
             ClearLayers();
 
-            AddImage(worldLayer, "Game BG", Vector2.zero, Vector2.one, bg, null);
+            BuildGameplay3DWeapon();
 
             AddText(worldLayer, "RECOIL RIVALS", 20, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.045f,.94f), new Vector2(.40f,.985f), muted);
             heartsText = AddText(worldLayer, "♥  ♥  ♥", 32, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.045f,.885f), new Vector2(.35f,.94f), red);
@@ -356,7 +363,7 @@ namespace RecoilRivals2
             enemiesText = AddText(worldLayer, "TARGETS 0", 22, FontStyle.Bold, TextAnchor.MiddleRight, new Vector2(.62f,.885f), new Vector2(.955f,.94f), orange);
             coinText = AddText(worldLayer, "◈ "+coins, 20, FontStyle.Bold, TextAnchor.MiddleRight, new Vector2(.70f,.94f), new Vector2(.955f,.985f), muted);
 
-            arena = AddPanel(worldLayer,"ARENA",new Vector2(.045f,.115f),new Vector2(.955f,.87f),new Color(.027f,.035f,.048f,1f),rounded);
+            arena = AddPanel(worldLayer,"ARENA",new Vector2(.045f,.115f),new Vector2(.955f,.87f),new Color(.027f,.035f,.048f,.30f),rounded);
             var frame=arena.gameObject.AddComponent<Outline>();
             frame.effectColor=new Color(.10f,.34f,.36f,.9f);
             frame.effectDistance=new Vector2(3f,-3f);
@@ -374,7 +381,6 @@ namespace RecoilRivals2
             playerAngularVel = 0f;
             playerRoot = NewRect("PLAYER", arenaContent);
             SetArenaTransform(playerRoot, playerPos, new Vector2(170,80), playerAngle);
-            BuildWeaponGraphic(playerRoot,Vector2.zero,Vector2.one,cyan,white,selectedWeapon,true);
 
             aimRing = AddImage(arenaContent,"Player Ring",Vector2.zero,Vector2.zero,new Color(.1f,.95f,.80f,.12f),circle);
             aimRing.sizeDelta=new Vector2(210,210);
@@ -498,6 +504,7 @@ namespace RecoilRivals2
 
             playerVel -= dir*s.recoil;
             playerAngularVel += s.spin;
+            gameplayWeaponKick = Mathf.Max(gameplayWeaponKick, selectedWeapon==WeaponType.Shotgun ? .20f : .12f);
             SpawnBurst(muzzle,cyan,6);
             arenaShake=.11f; arenaShakePower=8f;
         }
@@ -804,6 +811,8 @@ namespace RecoilRivals2
             model.name=selectedWeapon==WeaponType.Shotgun ? "Breach Shotgun - REAL FBX" : "Pistol 9mm - REAL FBX";
             menuGunModel=model.transform;
 
+            KeepOnlyPrimaryWeaponGroup(model, selectedWeapon==WeaponType.Shotgun);
+
             foreach(var renderer in model.GetComponentsInChildren<Renderer>(true))
             {
                 if(selectedMaterial!=null)
@@ -823,6 +832,168 @@ namespace RecoilRivals2
             menuAnimTime=0f;
             menuDragging=false;
             lastPinchDistance=0f;
+        }
+
+        void KeepOnlyPrimaryWeaponGroup(GameObject model,bool shotgun)
+        {
+            string wanted=shotgun ? "shotgun" : "HIpistol";
+            Transform primary=null;
+            int bestCount=int.MaxValue;
+
+            foreach(var t in model.GetComponentsInChildren<Transform>(true))
+            {
+                if(!string.Equals(t.name,wanted,StringComparison.OrdinalIgnoreCase)) continue;
+                int count=t.GetComponentsInChildren<Renderer>(true).Length;
+                if(count>0 && count<bestCount)
+                {
+                    primary=t;
+                    bestCount=count;
+                }
+            }
+
+            if(primary==null) return;
+
+            foreach(var r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                bool keep=r.transform==primary || r.transform.IsChildOf(primary);
+                r.enabled=keep;
+            }
+        }
+
+        void BuildGameplay3DWeapon()
+        {
+            DestroyGameplay3D();
+
+            GameObject selectedPrefab=selectedWeapon==WeaponType.Shotgun ? menuShotgunPrefab : menuWeaponPrefab;
+            Material selectedMaterial=selectedWeapon==WeaponType.Shotgun ? menuShotgunMaterial : menuWeaponMaterial;
+            if(selectedPrefab==null) return;
+
+            gameplay3DRoot=new GameObject("GAMEPLAY_REAL_3D_WEAPON");
+            gameplay3DRoot.transform.SetParent(transform,false);
+
+            var camGO=new GameObject("Gameplay Weapon Camera");
+            camGO.transform.SetParent(gameplay3DRoot.transform,false);
+            gameplayWeaponCamera=camGO.AddComponent<Camera>();
+            gameplayWeaponCamera.clearFlags=CameraClearFlags.SolidColor;
+            gameplayWeaponCamera.backgroundColor=bg;
+            gameplayWeaponCamera.orthographic=true;
+            gameplayWeaponCamera.orthographicSize=5f;
+            gameplayWeaponCamera.nearClipPlane=.05f;
+            gameplayWeaponCamera.farClipPlane=40f;
+            gameplayWeaponCamera.depth=-30f;
+            gameplayWeaponCamera.transform.position=new Vector3(0f,0f,-10f);
+            gameplayWeaponCamera.transform.rotation=Quaternion.identity;
+
+            var keyGO=new GameObject("Gameplay Key");
+            keyGO.transform.SetParent(gameplay3DRoot.transform,false);
+            keyGO.transform.rotation=Quaternion.Euler(28f,-35f,0f);
+            var key=keyGO.AddComponent<Light>();
+            key.type=LightType.Directional;
+            key.intensity=1.65f;
+            key.color=new Color(.84f,.92f,1f);
+            key.shadows=LightShadows.Soft;
+
+            var rimGO=new GameObject("Gameplay Rim");
+            rimGO.transform.SetParent(gameplay3DRoot.transform,false);
+            rimGO.transform.position=new Vector3(-2f,2f,-2f);
+            var rim=rimGO.AddComponent<Light>();
+            rim.type=LightType.Point;
+            rim.range=10f;
+            rim.intensity=3.2f;
+            rim.color=new Color(.05f,.95f,.82f);
+
+            gameplayWeaponPivot=new GameObject("Gameplay Weapon Pivot").transform;
+            gameplayWeaponPivot.SetParent(gameplay3DRoot.transform,false);
+
+            var model=Instantiate(selectedPrefab,gameplayWeaponPivot);
+            model.name=selectedWeapon==WeaponType.Shotgun ? "Gameplay Breach Shotgun" : "Gameplay 9MM Pistol";
+            gameplayWeaponModel=model.transform;
+
+            KeepOnlyPrimaryWeaponGroup(model,selectedWeapon==WeaponType.Shotgun);
+
+            foreach(var renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                if(!renderer.enabled) continue;
+                if(selectedMaterial!=null)
+                {
+                    var mats=new Material[Mathf.Max(1,renderer.sharedMaterials.Length)];
+                    for(int i=0;i<mats.Length;i++) mats[i]=selectedMaterial;
+                    renderer.sharedMaterials=mats;
+                }
+                renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows=true;
+            }
+
+            NormalizeGameplayWeapon(model);
+            gameplayWeaponKick=0f;
+        }
+
+        void NormalizeGameplayWeapon(GameObject model)
+        {
+            model.transform.localPosition=Vector3.zero;
+            model.transform.localRotation=Quaternion.identity;
+            model.transform.localScale=Vector3.one;
+
+            Bounds b=GetEnabledRendererBounds(model);
+            Vector3 s=b.size;
+            if(s.z>s.x && s.z>s.y)
+                model.transform.localRotation=Quaternion.Euler(0f,90f,0f);
+            else if(s.y>s.x && s.y>s.z)
+                model.transform.localRotation=Quaternion.Euler(0f,0f,90f);
+
+            b=GetEnabledRendererBounds(model);
+            float longest=Mathf.Max(b.size.x,Mathf.Max(b.size.y,b.size.z));
+            float target=selectedWeapon==WeaponType.Shotgun ? 1.34f : 1.02f;
+            if(longest>.0001f)
+                model.transform.localScale=Vector3.one*(target/longest);
+
+            b=GetEnabledRendererBounds(model);
+            model.transform.position-=b.center;
+
+            // Tiny permanent tilt shows that this is an actual 3D mesh while preserving gameplay readability.
+            model.transform.localRotation=Quaternion.Euler(8f,10f,0f)*model.transform.localRotation;
+        }
+
+        Bounds GetEnabledRendererBounds(GameObject model)
+        {
+            Renderer first=null;
+            Bounds b=new Bounds(model.transform.position,Vector3.one*.01f);
+            foreach(var r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                if(!r.enabled) continue;
+                if(first==null){ first=r; b=r.bounds; }
+                else b.Encapsulate(r.bounds);
+            }
+            return b;
+        }
+
+        void UpdateGameplayWeapon3D(float dt)
+        {
+            if(gameplayWeaponPivot==null || gameplayWeaponCamera==null) return;
+
+            float vx=.5f+playerPos.x*.455f;
+            float vy=.4925f+playerPos.y*.3775f;
+            Vector3 world=gameplayWeaponCamera.ViewportToWorldPoint(new Vector3(vx,vy,10f));
+
+            float r=playerAngle*Mathf.Deg2Rad;
+            Vector3 recoil=new Vector3(-Mathf.Cos(r),-Mathf.Sin(r),0f)*gameplayWeaponKick;
+            gameplayWeaponPivot.position=new Vector3(world.x+recoil.x,world.y+recoil.y,0f);
+            gameplayWeaponPivot.rotation=Quaternion.Euler(0f,0f,playerAngle);
+
+            gameplayWeaponKick=Mathf.MoveTowards(gameplayWeaponKick,0f,dt*1.65f);
+        }
+
+        void DestroyGameplay3D()
+        {
+            gameplayWeaponPivot=null;
+            gameplayWeaponModel=null;
+            gameplayWeaponCamera=null;
+            gameplayWeaponKick=0f;
+            if(gameplay3DRoot!=null)
+            {
+                Destroy(gameplay3DRoot);
+                gameplay3DRoot=null;
+            }
         }
 
         void NormalizeMenuWeapon(GameObject model)
@@ -1184,6 +1355,7 @@ namespace RecoilRivals2
         {
             CancelInvoke();
             DestroyMenu3D();
+            DestroyGameplay3D();
             for(int i=worldLayer.childCount-1;i>=0;i--) Destroy(worldLayer.GetChild(i).gameObject);
             for(int i=overlayLayer.childCount-1;i>=0;i--) Destroy(overlayLayer.GetChild(i).gameObject);
             enemies.Clear();bullets.Clear();effects.Clear();obstacles.Clear();
