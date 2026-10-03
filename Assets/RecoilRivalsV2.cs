@@ -88,7 +88,9 @@ namespace RecoilRivals2
         float menuAnimTime;
         float menuYaw = 18f;
         float menuPitch = 4f;
-        float menuZoom = 6.2f;
+        float menuZoom = 8.4f;
+        float menuMinZoom = 6.8f;
+        float menuMaxZoom = 11.5f;
         bool menuDragging;
         float lastPinchDistance;
 
@@ -211,8 +213,8 @@ namespace RecoilRivals2
 
                 if (menuCamera != null)
                 {
-                    menuCamera.transform.position = new Vector3(0f, .08f, -menuZoom);
-                    menuCamera.transform.LookAt(new Vector3(0f,.02f,0f));
+                    menuCamera.transform.position = new Vector3(0f, .16f, -menuZoom);
+                    menuCamera.transform.LookAt(new Vector3(0f,.10f,0f));
                 }
             }
 
@@ -740,8 +742,8 @@ namespace RecoilRivals2
             menuCamera.farClipPlane=60f;
             menuCamera.depth=-20f;
             menuCamera.allowHDR=true;
-            menuCamera.transform.position=new Vector3(0f,.08f,-menuZoom);
-            menuCamera.transform.LookAt(new Vector3(0f,.02f,0f));
+            menuCamera.transform.position=new Vector3(0f,.16f,-menuZoom);
+            menuCamera.transform.LookAt(new Vector3(0f,.10f,0f));
 
             Material baseMat = menuLitTemplate != null ? menuLitTemplate : menuWeaponMaterial;
             if(baseMat==null) throw new InvalidOperationException("3D menu material is missing.");
@@ -818,7 +820,6 @@ namespace RecoilRivals2
 
             menuYaw=18f;
             menuPitch=4f;
-            menuZoom=6.2f;
             menuAnimTime=0f;
             menuDragging=false;
             lastPinchDistance=0f;
@@ -833,20 +834,38 @@ namespace RecoilRivals2
             Bounds b=GetRendererBounds(model);
             Vector3 s=b.size;
 
-            // Point the longest model axis across the phone screen.
+            // Keep the weapon's longest axis horizontal in portrait.
             if(s.z>s.x && s.z>s.y)
                 model.transform.localRotation=Quaternion.Euler(0f,90f,0f);
             else if(s.y>s.x && s.y>s.z)
                 model.transform.localRotation=Quaternion.Euler(0f,0f,90f);
 
+            // Portrait screens are narrow. The old 3.85-unit target was almost
+            // twice as wide as the camera frustum, which is why the player only
+            // saw giant clipped pieces of the pistol.
             b=GetRendererBounds(model);
             float longest=Mathf.Max(b.size.x,Mathf.Max(b.size.y,b.size.z));
             if(longest>.0001f)
-                model.transform.localScale=Vector3.one*(3.85f/longest);
+                model.transform.localScale=Vector3.one*(2.05f/longest);
 
+            // Center the actual renderer bounds on the rotation pivot.
             b=GetRendererBounds(model);
             model.transform.position-=b.center;
-            model.transform.localPosition+=new Vector3(0f,.12f,0f);
+            model.transform.localPosition+=new Vector3(0f,.10f,0f);
+
+            // Fit a bounding sphere inside the *horizontal* FOV so the complete
+            // gun stays visible even while the player rotates it through 360°.
+            b=GetRendererBounds(model);
+            float radius=Mathf.Max(.2f,b.extents.magnitude);
+            float aspect=(Screen.height>0)?Mathf.Clamp((float)Screen.width/Screen.height,.42f,.75f):(9f/16f);
+            float vHalf=menuCamera.fieldOfView*.5f*Mathf.Deg2Rad;
+            float hHalf=Mathf.Atan(Mathf.Tan(vHalf)*aspect);
+            float limitingHalf=Mathf.Max(.08f,Mathf.Min(vHalf,hHalf));
+            float fitted=radius/Mathf.Tan(limitingHalf)*1.20f;
+
+            menuZoom=Mathf.Clamp(fitted,7.6f,11.2f);
+            menuMinZoom=menuZoom*.78f;
+            menuMaxZoom=menuZoom*1.36f;
         }
 
         Bounds GetRendererBounds(GameObject model)
@@ -876,7 +895,7 @@ namespace RecoilRivals2
                     if(lastPinchDistance>1f)
                     {
                         float delta=dist-lastPinchDistance;
-                        menuZoom=Mathf.Clamp(menuZoom-delta*.0065f,4.2f,8.2f);
+                        menuZoom=Mathf.Clamp(menuZoom-delta*.0065f,menuMinZoom,menuMaxZoom);
                     }
                     lastPinchDistance=dist;
                     menuDragging=true;
@@ -911,7 +930,7 @@ namespace RecoilRivals2
                 }
 
                 float scroll=Mouse.current.scroll.ReadValue().y;
-                if(Mathf.Abs(scroll)>1f) menuZoom=Mathf.Clamp(menuZoom-scroll*.0025f,4.2f,8.2f);
+                if(Mathf.Abs(scroll)>1f) menuZoom=Mathf.Clamp(menuZoom-scroll*.0025f,menuMinZoom,menuMaxZoom);
             }
         }
 
