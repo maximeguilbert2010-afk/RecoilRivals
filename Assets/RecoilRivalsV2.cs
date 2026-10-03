@@ -14,6 +14,9 @@ namespace RecoilRivals2
         enum WeaponType { Pistol, Revolver, Shotgun }
         enum EnemyType { Standard, Fast, Heavy, Shotgun }
 
+        const int MaxLevel = 30;
+        const int ShotgunUnlockAfterLevel = 15;
+
         class Enemy
         {
             public RectTransform root;
@@ -76,6 +79,8 @@ namespace RecoilRivals2
         [SerializeField] public Material menuLitTemplate;
         [SerializeField] public GameObject menuWeaponPrefab;
         [SerializeField] public Material menuWeaponMaterial;
+        [SerializeField] public GameObject menuShotgunPrefab;
+        [SerializeField] public Material menuShotgunMaterial;
         GameObject menu3DRoot;
         Camera menuCamera;
         Transform menuGunRoot;
@@ -124,15 +129,18 @@ namespace RecoilRivals2
             QualitySettings.vSyncCount = 0;
             Screen.orientation = ScreenOrientation.Portrait;
 
-            level = Mathf.Clamp(PlayerPrefs.GetInt("RR2_Level", 1), 1, 10);
+            level = Mathf.Clamp(PlayerPrefs.GetInt("RR2_Level", 1), 1, MaxLevel);
             coins = Mathf.Max(0, PlayerPrefs.GetInt("RR2_Coins", 0));
             selectedWeapon = (WeaponType)Mathf.Clamp(PlayerPrefs.GetInt("RR2_Weapon", 0), 0, 2);
+            // Only weapons with real 3D assets are selectable right now.
+            if (selectedWeapon == WeaponType.Revolver || (selectedWeapon == WeaponType.Shotgun && !ShotgunUnlocked()))
+                selectedWeapon = WeaponType.Pistol;
 
             weapons = new[]
             {
-                new WeaponStats("VANTA PISTOL",1f,.25f,.42f,92f,1.55f,1,0f,0),
+                new WeaponStats("9MM PISTOL",1f,.25f,.42f,92f,1.55f,1,0f,0),
                 new WeaponStats("IRON REVOLVER",2f,.48f,.62f,138f,1.72f,1,0f,1),
-                new WeaponStats("BREACH SHOTGUN",.68f,.68f,.78f,170f,1.38f,5,12f,0)
+                new WeaponStats("BREACH SHOTGUN",.72f,.72f,.82f,176f,1.34f,6,13f,0)
             };
 
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -188,7 +196,7 @@ namespace RecoilRivals2
 
         void Update()
         {
-            if (mode == ScreenMode.Menu && menuGunRoot != null)
+            if ((mode == ScreenMode.Menu || mode == ScreenMode.Loadout) && menuGunRoot != null)
             {
                 UpdateMenuWeaponInput();
 
@@ -252,7 +260,7 @@ namespace RecoilRivals2
             var infoOutline=info.gameObject.AddComponent<Outline>();
             infoOutline.effectColor=new Color(.12f,.63f,.60f,.46f);
             infoOutline.effectDistance=new Vector2(1.5f,-1.5f);
-            AddText(info,"9MM PISTOL",27,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.05f,.43f),new Vector2(.52f,.88f),white);
+            AddText(info,SelectedWeaponDisplayName(),27,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.05f,.43f),new Vector2(.52f,.88f),white);
             AddText(info,"REAL 3D VIEW",15,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.05f,.10f),new Vector2(.42f,.44f),cyanSoft);
             AddText(info,"DRAG TO ROTATE   •   PINCH TO ZOOM",15,FontStyle.Bold,TextAnchor.MiddleRight,new Vector2(.38f,.12f),new Vector2(.95f,.74f),muted);
 
@@ -265,29 +273,72 @@ namespace RecoilRivals2
         {
             mode = ScreenMode.Loadout;
             ClearLayers();
-            AddImage(worldLayer, "BG", Vector2.zero, Vector2.one, bg, null);
-            AddDecorativeRails(worldLayer);
-            AddText(worldLayer, "LOADOUT", 68, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.07f,.86f), new Vector2(.93f,.95f), white);
-            AddText(worldLayer, "Choose your recoil profile.", 25, FontStyle.Normal, TextAnchor.MiddleLeft, new Vector2(.07f,.81f), new Vector2(.93f,.86f), muted);
+            BuildMenu3DView(null);
 
-            for (int i=0;i<3;i++)
-            {
-                int idx=i;
-                float y=.61f-i*.205f;
-                var card=AddPanel(worldLayer,"Weapon "+i,new Vector2(.065f,y),new Vector2(.935f,y+.165f),i==(int)selectedWeapon?new Color(.035f,.13f,.125f,1f):panel,rounded);
-                BuildWeaponGraphic(card,new Vector2(.04f,.15f),new Vector2(.35f,.85f),i==(int)selectedWeapon?cyan:cyanSoft,white,(WeaponType)i,false);
-                AddText(card,weapons[i].name,31,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.38f,.52f),new Vector2(.72f,.86f),white);
-                AddText(card,"DMG "+weapons[i].damage.ToString("0.0")+"   RECOIL "+Mathf.RoundToInt(weapons[i].recoil*100),19,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.38f,.22f),new Vector2(.74f,.52f),muted);
-                AddButton(card,i==(int)selectedWeapon?"EQUIPPED":"EQUIP",new Vector2(.74f,.24f),new Vector2(.95f,.76f),i==(int)selectedWeapon?cyan:panel2,i==(int)selectedWeapon?bg:white,()=>{selectedWeapon=(WeaponType)idx;PlayerPrefs.SetInt("RR2_Weapon",idx);PlayerPrefs.Save();ShowLoadout();},19);
-            }
-            AddButton(worldLayer,"BACK",new Vector2(.22f,.07f),new Vector2(.78f,.13f),panel2,white,ShowMenu,27);
+            AddImage(worldLayer,"Loadout Top Shade",new Vector2(0,.72f),new Vector2(1,1),new Color(.006f,.010f,.015f,.72f),null);
+            AddImage(worldLayer,"Loadout Bottom Shade",new Vector2(0,0),new Vector2(1,.38f),new Color(.006f,.010f,.015f,.86f),null);
+
+            AddText(worldLayer,"LOADOUT",58,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.06f,.90f),new Vector2(.62f,.965f),white);
+            AddText(worldLayer,"REAL 3D WEAPON VIEW",16,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.06f,.865f),new Vector2(.55f,.905f),cyanSoft);
+            AddText(worldLayer,"DRAG TO ROTATE  •  PINCH TO ZOOM",14,FontStyle.Bold,TextAnchor.MiddleRight,new Vector2(.39f,.865f),new Vector2(.94f,.905f),muted);
+
+            bool shotgunUnlocked=ShotgunUnlocked();
+
+            var pistol=AddPanel(worldLayer,"Pistol Select",new Vector2(.055f,.215f),new Vector2(.475f,.345f),
+                selectedWeapon==WeaponType.Pistol?new Color(.035f,.13f,.125f,.96f):new Color(.025f,.035f,.047f,.96f),rounded);
+            AddText(pistol,"9MM PISTOL",25,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.05f,.52f),new Vector2(.95f,.88f),white);
+            AddText(pistol,"STARTER",14,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.20f),new Vector2(.92f,.48f),cyanSoft);
+            AddButton(pistol,selectedWeapon==WeaponType.Pistol?"EQUIPPED":"EQUIP",new Vector2(.17f,-.42f),new Vector2(.83f,.02f),
+                selectedWeapon==WeaponType.Pistol?cyan:panel2,selectedWeapon==WeaponType.Pistol?bg:white,
+                ()=>EquipWeapon(WeaponType.Pistol),18);
+
+            var shotgun=AddPanel(worldLayer,"Shotgun Select",new Vector2(.525f,.215f),new Vector2(.945f,.345f),
+                selectedWeapon==WeaponType.Shotgun?new Color(.14f,.075f,.025f,.96f):new Color(.025f,.035f,.047f,.96f),rounded);
+            AddText(shotgun,"BREACH SHOTGUN",23,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.04f,.52f),new Vector2(.96f,.88f),white);
+            AddText(shotgun,shotgunUnlocked?"UNLOCKED":"UNLOCK AFTER LEVEL 15",14,FontStyle.Bold,TextAnchor.MiddleCenter,
+                new Vector2(.05f,.20f),new Vector2(.95f,.48f),shotgunUnlocked?orange:muted);
+            AddButton(shotgun,shotgunUnlocked?(selectedWeapon==WeaponType.Shotgun?"EQUIPPED":"EQUIP"):"LOCKED",
+                new Vector2(.17f,-.42f),new Vector2(.83f,.02f),
+                shotgunUnlocked?(selectedWeapon==WeaponType.Shotgun?orange:panel2):new Color(.055f,.060f,.068f,1f),
+                shotgunUnlocked?(selectedWeapon==WeaponType.Shotgun?bg:white):muted,
+                ()=>{ if(ShotgunUnlocked()) EquipWeapon(WeaponType.Shotgun); },18);
+
+            var stats=AddPanel(worldLayer,"Weapon Stats",new Vector2(.07f,.105f),new Vector2(.93f,.185f),new Color(.015f,.022f,.030f,.84f),rounded);
+            var s=weapons[(int)selectedWeapon];
+            AddText(stats,SelectedWeaponDisplayName(),20,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.04f,.52f),new Vector2(.46f,.90f),white);
+            AddText(stats,"DMG "+s.damage.ToString("0.00")+"   RECOIL "+Mathf.RoundToInt(s.recoil*100)+"   PELLETS "+s.pellets,
+                15,FontStyle.Bold,TextAnchor.MiddleRight,new Vector2(.35f,.14f),new Vector2(.96f,.60f),muted);
+
+            AddButton(worldLayer,"BACK",new Vector2(.25f,.030f),new Vector2(.75f,.082f),panel2,white,ShowMenu,24);
+        }
+
+        bool ShotgunUnlocked()
+        {
+            // "After 15 levels" means the reward is available once level 15 has been completed.
+            return level > ShotgunUnlockAfterLevel;
+        }
+
+        string SelectedWeaponDisplayName()
+        {
+            return selectedWeapon==WeaponType.Shotgun ? "BREACH SHOTGUN" : "9MM PISTOL";
+        }
+
+        void EquipWeapon(WeaponType weapon)
+        {
+            if(weapon==WeaponType.Shotgun && !ShotgunUnlocked()) return;
+            if(weapon==WeaponType.Revolver) return;
+
+            selectedWeapon=weapon;
+            PlayerPrefs.SetInt("RR2_Weapon",(int)selectedWeapon);
+            PlayerPrefs.Save();
+            ShowLoadout();
         }
 
         void StartLevel(int target)
         {
             mode = ScreenMode.Playing;
             resolving = false;
-            level = Mathf.Clamp(target,1,10);
+            level = Mathf.Clamp(target,1,MaxLevel);
             playerHp = 3;
             bullets.Clear();
             enemies.Clear();
@@ -347,7 +398,7 @@ namespace RecoilRivals2
             }
 
             var tag=AddPanel(arenaContent,"Sector",new Vector2(.035f,.91f),new Vector2(.27f,.965f),new Color(.06f,.085f,.105f,.95f),rounded);
-            AddText(tag,"SECTOR 0"+Mathf.Clamp(level,1,9),16,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.05f,.1f),new Vector2(.95f,.9f),cyanSoft);
+            AddText(tag,"SECTOR "+level.ToString("00"),16,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.05f,.1f),new Vector2(.95f,.9f),cyanSoft);
         }
 
         void BuildObstaclesForLevel(int l)
@@ -587,7 +638,7 @@ namespace RecoilRivals2
             int completed=level;
             int reward=40+completed*8;
             coins+=reward;
-            if(completed<10) level=completed+1;
+            if(completed<MaxLevel) level=completed+1;
             PlayerPrefs.SetInt("RR2_Level",level);
             PlayerPrefs.SetInt("RR2_Coins",coins);
             PlayerPrefs.Save();
@@ -603,7 +654,10 @@ namespace RecoilRivals2
             AddText(dim,victory?"LEVEL CLEARED":"WEAPON DOWN",64,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.06f,.67f),new Vector2(.94f,.79f),victory?cyan:red);
             AddText(dim,victory?("+"+reward+"  COINS"):"CONTROL THE RECOIL",28,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.59f),new Vector2(.92f,.66f),white);
 
-            if(victory && completed<10)
+            if(victory && completed==ShotgunUnlockAfterLevel)
+                AddText(dim,"NEW WEAPON UNLOCKED  •  BREACH SHOTGUN",22,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.535f),new Vector2(.92f,.585f),orange);
+
+            if(victory && completed<MaxLevel)
                 AddButton(dim,"NEXT  /  LEVEL "+(completed+1),new Vector2(.12f,.40f),new Vector2(.88f,.49f),cyan,bg,()=>StartLevel(completed+1),34);
             else
                 AddButton(dim,victory?"REPLAY":"RETRY",new Vector2(.12f,.40f),new Vector2(.88f,.49f),victory?cyan:red,victory?bg:white,()=>StartLevel(completed),34);
@@ -734,23 +788,26 @@ namespace RecoilRivals2
             var warm=warmGO.AddComponent<Light>();
             warm.type=LightType.Point; warm.range=7f; warm.intensity=2.1f; warm.color=new Color(1f,.35f,.12f);
 
-            if(menuWeaponPrefab==null)
-                throw new InvalidOperationException("The real pistol FBX was not assigned to the menu.");
+            GameObject selectedPrefab = selectedWeapon==WeaponType.Shotgun ? menuShotgunPrefab : menuWeaponPrefab;
+            Material selectedMaterial = selectedWeapon==WeaponType.Shotgun ? menuShotgunMaterial : menuWeaponMaterial;
+
+            if(selectedPrefab==null)
+                throw new InvalidOperationException("The selected real 3D weapon asset was not assigned to the menu.");
 
             menuGunRoot=new GameObject("Weapon Rotation Pivot").transform;
             menuGunRoot.SetParent(menu3DRoot.transform,false);
             menuGunRoot.localPosition=Vector3.zero;
 
-            var model=Instantiate(menuWeaponPrefab,menuGunRoot);
-            model.name="Pistol 9mm - REAL FBX";
+            var model=Instantiate(selectedPrefab,menuGunRoot);
+            model.name=selectedWeapon==WeaponType.Shotgun ? "Breach Shotgun - REAL FBX" : "Pistol 9mm - REAL FBX";
             menuGunModel=model.transform;
 
             foreach(var renderer in model.GetComponentsInChildren<Renderer>(true))
             {
-                if(menuWeaponMaterial!=null)
+                if(selectedMaterial!=null)
                 {
                     var mats=new Material[Mathf.Max(1,renderer.sharedMaterials.Length)];
-                    for(int i=0;i<mats.Length;i++) mats[i]=menuWeaponMaterial;
+                    for(int i=0;i<mats.Length;i++) mats[i]=selectedMaterial;
                     renderer.sharedMaterials=mats;
                 }
                 renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.On;

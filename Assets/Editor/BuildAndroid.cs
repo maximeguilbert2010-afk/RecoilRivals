@@ -54,7 +54,7 @@ namespace RecoilRivals.Editor
             importer.SaveAndReimport();
         }
 
-        private static Material GetOrCreatePistolMaterial(string path, string colorPath, string normalPath, string aoPath)
+        private static Material GetOrCreateWeaponMaterial(string path, string colorPath, string normalPath, string aoPath, string metallicPath)
         {
             Shader shader = Shader.Find("Universal Render Pipeline/Lit");
             if (shader == null) shader = Shader.Find("Universal Render Pipeline/Simple Lit");
@@ -72,6 +72,7 @@ namespace RecoilRivals.Editor
             Texture2D color = AssetDatabase.LoadAssetAtPath<Texture2D>(colorPath);
             Texture2D normal = AssetDatabase.LoadAssetAtPath<Texture2D>(normalPath);
             Texture2D ao = AssetDatabase.LoadAssetAtPath<Texture2D>(aoPath);
+            Texture2D metallic = string.IsNullOrEmpty(metallicPath) ? null : AssetDatabase.LoadAssetAtPath<Texture2D>(metallicPath);
 
             if (mat.HasProperty("_BaseMap")) mat.SetTexture("_BaseMap", color);
             if (mat.HasProperty("_MainTex")) mat.SetTexture("_MainTex", color);
@@ -89,6 +90,12 @@ namespace RecoilRivals.Editor
             {
                 mat.SetTexture("_OcclusionMap", ao);
                 if (mat.HasProperty("_OcclusionStrength")) mat.SetFloat("_OcclusionStrength", 1f);
+            }
+
+            if (metallic != null && mat.HasProperty("_MetallicGlossMap"))
+            {
+                mat.SetTexture("_MetallicGlossMap", metallic);
+                mat.EnableKeyword("_METALLICSPECGLOSSMAP");
             }
 
             if (mat.HasProperty("_Metallic")) mat.SetFloat("_Metallic", .55f);
@@ -138,6 +145,7 @@ namespace RecoilRivals.Editor
             const string colorPath = pistolRoot + "/textures/HIpistolColor.png";
             const string normalPath = pistolRoot + "/textures/HIpistolNormal.png";
             const string aoPath = pistolRoot + "/textures/HIpistolAO.png";
+            const string pistolMetallicPath = pistolRoot + "/textures/HIpistolMetallic.png";
 
             if (!File.Exists(Path.GetFullPath(pistolFbx)))
                 throw new FileNotFoundException("Real pistol asset was not found. Expected " + pistolFbx);
@@ -145,14 +153,38 @@ namespace RecoilRivals.Editor
             ConfigureTexture(colorPath, false, true, 2048);
             ConfigureTexture(normalPath, true, false, 2048);
             ConfigureTexture(aoPath, false, false, 1024);
+            ConfigureTexture(pistolMetallicPath, false, false, 1024);
 
             runtime.menuWeaponPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(pistolFbx);
             if (runtime.menuWeaponPrefab == null)
                 throw new InvalidOperationException("Unity could not import the pistol FBX at " + pistolFbx);
 
-            runtime.menuWeaponMaterial = GetOrCreatePistolMaterial(
+            runtime.menuWeaponMaterial = GetOrCreateWeaponMaterial(
                 generatedFolder + "/RR_Pistol9mm.mat",
-                colorPath, normalPath, aoPath);
+                colorPath, normalPath, aoPath, pistolMetallicPath);
+
+            const string shotgunRoot = "Assets/Imported/Shotgun";
+            const string shotgunFbx = shotgunRoot + "/source/shotgun.fbx";
+            const string shotgunColor = shotgunRoot + "/textures/shotgunColor.png";
+            const string shotgunNormal = shotgunRoot + "/textures/shotgunNormal.png";
+            const string shotgunAO = shotgunRoot + "/textures/shotgunAO.png";
+            const string shotgunMetallic = shotgunRoot + "/textures/shotgunMetallic.png";
+
+            if (!File.Exists(Path.GetFullPath(shotgunFbx)))
+                throw new FileNotFoundException("Real shotgun asset was not found. Expected " + shotgunFbx);
+
+            ConfigureTexture(shotgunColor, false, true, 2048);
+            ConfigureTexture(shotgunNormal, true, false, 2048);
+            ConfigureTexture(shotgunAO, false, false, 1024);
+            ConfigureTexture(shotgunMetallic, false, false, 1024);
+
+            runtime.menuShotgunPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(shotgunFbx);
+            if (runtime.menuShotgunPrefab == null)
+                throw new InvalidOperationException("Unity could not import the shotgun FBX at " + shotgunFbx);
+
+            runtime.menuShotgunMaterial = GetOrCreateWeaponMaterial(
+                generatedFolder + "/RR_BreachShotgun.mat",
+                shotgunColor, shotgunNormal, shotgunAO, shotgunMetallic);
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
