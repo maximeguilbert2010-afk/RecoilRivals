@@ -74,12 +74,18 @@ namespace RecoilRivals2
         Sprite circle;
 
         [SerializeField] public Material menuLitTemplate;
+        [SerializeField] public GameObject menuWeaponPrefab;
+        [SerializeField] public Material menuWeaponMaterial;
         GameObject menu3DRoot;
         Camera menuCamera;
-        RenderTexture menuRenderTexture;
         Transform menuGunRoot;
-        RawImage menuWeaponView;
+        Transform menuGunModel;
         float menuAnimTime;
+        float menuYaw = 18f;
+        float menuPitch = 4f;
+        float menuZoom = 6.2f;
+        bool menuDragging;
+        float lastPinchDistance;
 
         readonly List<Enemy> enemies = new List<Enemy>();
         readonly List<Bullet> bullets = new List<Bullet>();
@@ -184,12 +190,22 @@ namespace RecoilRivals2
         {
             if (mode == ScreenMode.Menu && menuGunRoot != null)
             {
-                menuAnimTime += Time.unscaledDeltaTime;
-                float yaw = Mathf.Sin(menuAnimTime * .55f) * 6.5f;
-                float pitch = 5f + Mathf.Sin(menuAnimTime * .38f) * 1.5f;
-                float roll = Mathf.Sin(menuAnimTime * .72f) * 1.2f;
-                menuGunRoot.localRotation = Quaternion.Euler(pitch, 18f + yaw, roll);
-                menuGunRoot.localPosition = new Vector3(0f, .10f + Mathf.Sin(menuAnimTime * .9f) * .035f, 0f);
+                UpdateMenuWeaponInput();
+
+                if (!menuDragging)
+                {
+                    menuAnimTime += Time.unscaledDeltaTime;
+                    menuYaw += Time.unscaledDeltaTime * 5.5f;
+                }
+
+                menuGunRoot.localRotation = Quaternion.Euler(menuPitch, menuYaw, 0f);
+                menuGunRoot.localPosition = new Vector3(0f, .02f + Mathf.Sin(menuAnimTime * .8f) * .025f, 0f);
+
+                if (menuCamera != null)
+                {
+                    menuCamera.transform.position = new Vector3(0f, .08f, -menuZoom);
+                    menuCamera.transform.LookAt(new Vector3(0f,.02f,0f));
+                }
             }
 
             if (mode == ScreenMode.Playing)
@@ -218,43 +234,31 @@ namespace RecoilRivals2
             resolving = false;
             ClearLayers();
 
-            // Deliberate, restrained industrial presentation instead of generated-looking decoration.
-            AddImage(worldLayer, "Menu BG", Vector2.zero, Vector2.one, new Color(.012f,.016f,.023f,1f), null);
-            AddImage(worldLayer, "Upper Shade", new Vector2(0,.68f), new Vector2(1,1), new Color(.025f,.055f,.070f,.86f), null);
-            AddImage(worldLayer, "Center Glow", new Vector2(.05f,.28f), new Vector2(.95f,.73f), new Color(.018f,.105f,.115f,.36f), rounded);
+            // The menu background is a real 3D armory scene rendered by a camera.
+            // UI is kept transparent so the actual weapon remains visible.
+            BuildMenu3DView(null);
 
-            // Thin architectural rails. Kept symmetrical and sparse on purpose.
-            AddImage(worldLayer,"Rail L",new Vector2(.045f,.18f),new Vector2(.048f,.89f),new Color(.12f,.42f,.44f,.55f),null);
-            AddImage(worldLayer,"Rail R",new Vector2(.952f,.18f),new Vector2(.955f,.89f),new Color(.12f,.42f,.44f,.55f),null);
-            AddImage(worldLayer,"Header Line",new Vector2(.06f,.842f),new Vector2(.94f,.845f),new Color(.16f,.73f,.67f,.60f),null);
+            AddImage(worldLayer,"Top Shade",new Vector2(0,.73f),new Vector2(1,1),new Color(.006f,.010f,.015f,.58f),null);
+            AddImage(worldLayer,"Bottom Shade",new Vector2(0,0),new Vector2(1,.31f),new Color(.006f,.010f,.015f,.74f),null);
 
-            // Compact top HUD.
-            AddText(worldLayer,"RR // TACTICAL SYSTEM",18,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.065f,.945f),new Vector2(.48f,.978f),new Color(.38f,.56f,.61f,1f));
-            AddTechChip(worldLayer,"LV "+level,new Vector2(.065f,.890f),new Vector2(.285f,.938f),cyan);
-            AddTechChip(worldLayer,"◈  "+coins,new Vector2(.715f,.890f),new Vector2(.935f,.938f),orange);
+            AddText(worldLayer,"RECOIL",82,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.835f),new Vector2(.92f,.915f),white);
+            AddText(worldLayer,"R  I  V  A  L  S",31,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.12f,.795f),new Vector2(.88f,.838f),cyan);
+            AddText(worldLayer,"TACTICAL RECOIL DUELS",16,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.22f,.765f),new Vector2(.78f,.795f),new Color(.48f,.61f,.65f,1f));
 
-            // Logo: two clean lines, no giant random blocks.
-            AddText(worldLayer,"RECOIL",86,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.755f),new Vector2(.92f,.835f),white);
-            AddText(worldLayer,"R  I  V  A  L  S",34,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.12f,.710f),new Vector2(.88f,.758f),cyan);
-            AddText(worldLayer,"MASTER THE KICK",18,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.28f,.682f),new Vector2(.72f,.712f),muted);
+            AddTechChip(worldLayer,"LV "+level,new Vector2(.055f,.925f),new Vector2(.275f,.972f),cyan);
+            AddTechChip(worldLayer,"◈  "+coins,new Vector2(.725f,.925f),new Vector2(.945f,.972f),orange);
 
-            // Hero weapon bay.
-            var bay=AddPanel(worldLayer,"Hero Weapon Bay",new Vector2(.065f,.315f),new Vector2(.935f,.665f),new Color(.018f,.025f,.034f,.98f),rounded);
-            var bayOutline=bay.gameObject.AddComponent<Outline>();
-            bayOutline.effectColor=new Color(.10f,.46f,.47f,.72f);
-            bayOutline.effectDistance=new Vector2(2f,-2f);
-            AddImage(bay,"Top Accent",new Vector2(.035f,.94f),new Vector2(.965f,.952f),new Color(.12f,.95f,.82f,.82f),rounded);
-            AddText(bay,"ACTIVE WEAPON",18,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.045f,.875f),new Vector2(.42f,.94f),muted);
-            AddText(bay,weapons[(int)selectedWeapon].name,30,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.045f,.055f),new Vector2(.60f,.15f),white);
-            AddText(bay,"RECOIL  "+Mathf.RoundToInt(weapons[(int)selectedWeapon].recoil*100)+"    DMG  "+weapons[(int)selectedWeapon].damage.ToString("0.0"),16,FontStyle.Bold,TextAnchor.MiddleRight,new Vector2(.47f,.055f),new Vector2(.955f,.15f),new Color(.40f,.58f,.62f,1f));
+            var info=AddPanel(worldLayer,"Weapon Info",new Vector2(.07f,.275f),new Vector2(.93f,.355f),new Color(.015f,.022f,.030f,.80f),rounded);
+            var infoOutline=info.gameObject.AddComponent<Outline>();
+            infoOutline.effectColor=new Color(.12f,.63f,.60f,.46f);
+            infoOutline.effectDistance=new Vector2(1.5f,-1.5f);
+            AddText(info,"9MM PISTOL",27,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.05f,.43f),new Vector2(.52f,.88f),white);
+            AddText(info,"REAL 3D VIEW",15,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.05f,.10f),new Vector2(.42f,.44f),cyanSoft);
+            AddText(info,"DRAG TO ROTATE   •   PINCH TO ZOOM",15,FontStyle.Bold,TextAnchor.MiddleRight,new Vector2(.38f,.12f),new Vector2(.95f,.74f),muted);
 
-            BuildMenu3DView(bay);
-
-            // Proper button hierarchy: one dominant action, one secondary action.
-            AddTechButton(worldLayer,"PLAY",new Vector2(.075f,.185f),new Vector2(.925f,.275f),true,()=>StartLevel(level),38);
-            AddTechButton(worldLayer,"LOADOUT",new Vector2(.18f,.105f),new Vector2(.82f,.165f),false,ShowLoadout,25);
-
-            AddText(worldLayer,"TAP TO FIRE  •  RECOIL IS MOVEMENT",16,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.10f,.038f),new Vector2(.90f,.070f),new Color(.30f,.44f,.49f,1f));
+            AddTechButton(worldLayer,"PLAY",new Vector2(.075f,.155f),new Vector2(.925f,.245f),true,()=>StartLevel(level),38);
+            AddTechButton(worldLayer,"LOADOUT",new Vector2(.18f,.080f),new Vector2(.82f,.137f),false,ShowLoadout,24);
+            AddText(worldLayer,"360° WEAPON INSPECTION",14,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.20f,.030f),new Vector2(.80f,.060f),new Color(.31f,.45f,.49f,1f));
         }
 
         void ShowLoadout()
@@ -667,79 +671,191 @@ namespace RecoilRivals2
         {
             DestroyMenu3D();
 
-            menu3DRoot = new GameObject("MENU_3D_SHOWCASE");
+            menu3DRoot = new GameObject("REAL_3D_MENU_SCENE");
             menu3DRoot.transform.SetParent(transform,false);
 
-            menuRenderTexture = new RenderTexture(900,620,24,RenderTextureFormat.ARGB32);
-            menuRenderTexture.name="RR Menu Weapon RT";
-            menuRenderTexture.antiAliasing=4;
-            menuRenderTexture.Create();
-
-            var rawGO=new GameObject("3D Weapon View",typeof(RectTransform),typeof(RawImage));
-            rawGO.transform.SetParent(bay,false);
-            var rawRT=rawGO.GetComponent<RectTransform>();
-            Stretch(rawRT,new Vector2(.035f,.16f),new Vector2(.965f,.87f));
-            menuWeaponView=rawGO.GetComponent<RawImage>();
-            menuWeaponView.texture=menuRenderTexture;
-            menuWeaponView.color=Color.white;
-            menuWeaponView.raycastTarget=false;
-
-            var camGO=new GameObject("Menu Weapon Camera");
+            // Direct scene camera: the gun is NOT rendered to a RawImage or texture.
+            var camGO=new GameObject("Menu 3D Camera");
             camGO.transform.SetParent(menu3DRoot.transform,false);
             menuCamera=camGO.AddComponent<Camera>();
-            menuCamera.targetTexture=menuRenderTexture;
+            menuCamera.tag="MainCamera";
             menuCamera.clearFlags=CameraClearFlags.SolidColor;
-            menuCamera.backgroundColor=new Color(0,0,0,0);
-            menuCamera.fieldOfView=25f;
-            menuCamera.nearClipPlane=.05f;
-            menuCamera.farClipPlane=50f;
-            menuCamera.transform.position=new Vector3(0,.15f,-7.3f);
-            menuCamera.transform.LookAt(new Vector3(.12f,.05f,0));
+            menuCamera.backgroundColor=new Color(.006f,.009f,.014f,1f);
+            menuCamera.fieldOfView=31f;
+            menuCamera.nearClipPlane=.03f;
+            menuCamera.farClipPlane=60f;
+            menuCamera.depth=-20f;
+            menuCamera.allowHDR=true;
+            menuCamera.transform.position=new Vector3(0f,.08f,-menuZoom);
+            menuCamera.transform.LookAt(new Vector3(0f,.02f,0f));
 
+            Material baseMat = menuLitTemplate != null ? menuLitTemplate : menuWeaponMaterial;
+            if(baseMat==null) throw new InvalidOperationException("3D menu material is missing.");
+
+            Material floorMat=CloneMenuMat(baseMat,new Color(.028f,.032f,.038f),.68f,.54f,Color.black);
+            Material wallMat=CloneMenuMat(baseMat,new Color(.018f,.025f,.031f),.55f,.40f,Color.black);
+            Material edgeMat=CloneMenuMat(baseMat,new Color(.025f,.20f,.20f),.45f,.62f,new Color(.02f,.55f,.48f)*.7f);
+            Material darkMat=CloneMenuMat(baseMat,new Color(.010f,.013f,.017f),.48f,.48f,Color.black);
+
+            // Actual 3D armory/hangar set.
+            CreatePart(menu3DRoot.transform,"Floor",new Vector3(0f,-1.58f,2.8f),new Vector3(11f,.12f,10f),floorMat,null);
+            CreatePart(menu3DRoot.transform,"Back Wall",new Vector3(0f,1.45f,3.7f),new Vector3(11f,6.2f,.18f),wallMat,null);
+            CreatePart(menu3DRoot.transform,"Left Wall",new Vector3(-4.5f,.4f,1.8f),new Vector3(.16f,4.8f,4.2f),darkMat,null);
+            CreatePart(menu3DRoot.transform,"Right Wall",new Vector3(4.5f,.4f,1.8f),new Vector3(.16f,4.8f,4.2f),darkMat,null);
+
+            for(int i=-3;i<=3;i++)
+            {
+                CreatePart(menu3DRoot.transform,"Back Rib "+i,new Vector3(i*1.22f,.65f,3.56f),new Vector3(.07f,4.2f,.12f),edgeMat,null);
+                CreatePart(menu3DRoot.transform,"Floor Rail "+i,new Vector3(i*1.25f,-1.50f,1.6f),new Vector3(.035f,.025f,5.8f),edgeMat,null);
+            }
+
+            // Showcase pedestal.
+            CreateCylinder(menu3DRoot.transform,"Pedestal Base",new Vector3(0f,-1.38f,.20f),new Vector3(2.45f,.18f,1.38f),darkMat,64);
+            CreateCylinder(menu3DRoot.transform,"Pedestal Light",new Vector3(0f,-1.20f,.20f),new Vector3(2.24f,.045f,1.22f),edgeMat,64);
+            CreateCylinder(menu3DRoot.transform,"Pedestal Deck",new Vector3(0f,-1.12f,.20f),new Vector3(2.07f,.065f,1.12f),floorMat,64);
+
+            // Key/fill/rim lighting around the real model.
             var keyGO=new GameObject("Key Light");
             keyGO.transform.SetParent(menu3DRoot.transform,false);
-            keyGO.transform.rotation=Quaternion.Euler(28f,-32f,0);
+            keyGO.transform.rotation=Quaternion.Euler(32f,-36f,0f);
             var key=keyGO.AddComponent<Light>();
-            key.type=LightType.Directional;
-            key.intensity=1.75f;
-            key.color=new Color(.83f,.94f,1f);
+            key.type=LightType.Directional; key.intensity=1.55f; key.color=new Color(.83f,.90f,1f);
+            key.shadows=LightShadows.Soft;
 
-            var rimGO=new GameObject("Rim Light");
+            var rimGO=new GameObject("Cyan Rim");
             rimGO.transform.SetParent(menu3DRoot.transform,false);
-            rimGO.transform.position=new Vector3(-2.3f,1.4f,-1.6f);
+            rimGO.transform.position=new Vector3(-2.7f,1.3f,-1.5f);
             var rim=rimGO.AddComponent<Light>();
-            rim.type=LightType.Point;
-            rim.range=8f;
-            rim.intensity=5.0f;
-            rim.color=new Color(.05f,1f,.82f);
+            rim.type=LightType.Point; rim.range=8f; rim.intensity=4.2f; rim.color=new Color(.04f,.85f,.78f);
 
             var warmGO=new GameObject("Warm Fill");
             warmGO.transform.SetParent(menu3DRoot.transform,false);
-            warmGO.transform.position=new Vector3(2.7f,-.8f,-1.8f);
+            warmGO.transform.position=new Vector3(2.8f,-.35f,-.8f);
             var warm=warmGO.AddComponent<Light>();
-            warm.type=LightType.Point;
-            warm.range=7f;
-            warm.intensity=2.2f;
-            warm.color=new Color(1f,.36f,.12f);
+            warm.type=LightType.Point; warm.range=7f; warm.intensity=2.1f; warm.color=new Color(1f,.35f,.12f);
 
-            var lit = menuLitTemplate != null ? menuLitTemplate : Resources.GetBuiltinResource<Material>("Default-Material.mat");
-            if(lit==null) throw new InvalidOperationException("Menu material template is missing.");
+            if(menuWeaponPrefab==null)
+                throw new InvalidOperationException("The real pistol FBX was not assigned to the menu.");
 
-            Material dark=CloneMenuMat(lit,new Color(.055f,.065f,.075f),.72f,.78f,Color.black);
-            Material metal=CloneMenuMat(lit,new Color(.34f,.39f,.42f),.82f,.70f,Color.black);
-            Material lightMetal=CloneMenuMat(lit,new Color(.67f,.72f,.74f),.88f,.62f,Color.black);
-            Material accent=CloneMenuMat(lit,new Color(.04f,.62f,.58f),.56f,.58f,new Color(.04f,.95f,.82f)*1.4f);
-            Material black=CloneMenuMat(lit,new Color(.018f,.022f,.026f),.58f,.82f,Color.black);
-
-            // Stage/pedestal.
-            CreateCylinder(menu3DRoot.transform,"Pedestal Base",new Vector3(0,-1.12f,.15f),new Vector3(2.50f,.14f,1.40f),dark,64);
-            CreateCylinder(menu3DRoot.transform,"Pedestal Ring",new Vector3(0,-.99f,.15f),new Vector3(2.28f,.045f,1.25f),accent,64);
-            CreatePart(menu3DRoot.transform,"Pedestal Deck",new Vector3(0,-.91f,.15f),new Vector3(4.10f,.12f,1.72f),black,null);
-
-            menuGunRoot=new GameObject("Hero Gun").transform;
+            menuGunRoot=new GameObject("Weapon Rotation Pivot").transform;
             menuGunRoot.SetParent(menu3DRoot.transform,false);
-            menuGunRoot.localPosition=new Vector3(0,.10f,0);
-            CreateMenuGunModel(menuGunRoot,(int)selectedWeapon,dark,metal,lightMetal,accent,black);
+            menuGunRoot.localPosition=Vector3.zero;
+
+            var model=Instantiate(menuWeaponPrefab,menuGunRoot);
+            model.name="Pistol 9mm - REAL FBX";
+            menuGunModel=model.transform;
+
+            foreach(var renderer in model.GetComponentsInChildren<Renderer>(true))
+            {
+                if(menuWeaponMaterial!=null)
+                {
+                    var mats=new Material[Mathf.Max(1,renderer.sharedMaterials.Length)];
+                    for(int i=0;i<mats.Length;i++) mats[i]=menuWeaponMaterial;
+                    renderer.sharedMaterials=mats;
+                }
+                renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.On;
+                renderer.receiveShadows=true;
+            }
+
+            NormalizeMenuWeapon(model);
+
+            menuYaw=18f;
+            menuPitch=4f;
+            menuZoom=6.2f;
+            menuAnimTime=0f;
+            menuDragging=false;
+            lastPinchDistance=0f;
+        }
+
+        void NormalizeMenuWeapon(GameObject model)
+        {
+            model.transform.localPosition=Vector3.zero;
+            model.transform.localRotation=Quaternion.identity;
+            model.transform.localScale=Vector3.one;
+
+            Bounds b=GetRendererBounds(model);
+            Vector3 s=b.size;
+
+            // Point the longest model axis across the phone screen.
+            if(s.z>s.x && s.z>s.y)
+                model.transform.localRotation=Quaternion.Euler(0f,90f,0f);
+            else if(s.y>s.x && s.y>s.z)
+                model.transform.localRotation=Quaternion.Euler(0f,0f,90f);
+
+            b=GetRendererBounds(model);
+            float longest=Mathf.Max(b.size.x,Mathf.Max(b.size.y,b.size.z));
+            if(longest>.0001f)
+                model.transform.localScale=Vector3.one*(3.85f/longest);
+
+            b=GetRendererBounds(model);
+            model.transform.position-=b.center;
+            model.transform.localPosition+=new Vector3(0f,.12f,0f);
+        }
+
+        Bounds GetRendererBounds(GameObject model)
+        {
+            var rs=model.GetComponentsInChildren<Renderer>(true);
+            if(rs.Length==0) return new Bounds(model.transform.position,Vector3.one);
+            Bounds b=rs[0].bounds;
+            for(int i=1;i<rs.Length;i++) b.Encapsulate(rs[i].bounds);
+            return b;
+        }
+
+        void UpdateMenuWeaponInput()
+        {
+            menuDragging=false;
+
+            if(Touchscreen.current!=null)
+            {
+                var touches=Touchscreen.current.touches;
+                bool t0=touches.Count>0 && touches[0].press.isPressed;
+                bool t1=touches.Count>1 && touches[1].press.isPressed;
+
+                if(t0 && t1)
+                {
+                    Vector2 p0=touches[0].position.ReadValue();
+                    Vector2 p1=touches[1].position.ReadValue();
+                    float dist=Vector2.Distance(p0,p1);
+                    if(lastPinchDistance>1f)
+                    {
+                        float delta=dist-lastPinchDistance;
+                        menuZoom=Mathf.Clamp(menuZoom-delta*.0065f,4.2f,8.2f);
+                    }
+                    lastPinchDistance=dist;
+                    menuDragging=true;
+                    return;
+                }
+
+                lastPinchDistance=0f;
+                if(t0)
+                {
+                    Vector2 p=touches[0].position.ReadValue();
+                    // Reserve the upper title and lower buttons for UI taps.
+                    if(p.y>Screen.height*.30f && p.y<Screen.height*.78f)
+                    {
+                        Vector2 d=touches[0].delta.ReadValue();
+                        menuYaw-=d.x*.22f;
+                        menuPitch=Mathf.Clamp(menuPitch+d.y*.14f,-34f,34f);
+                        menuDragging=d.sqrMagnitude>.01f;
+                    }
+                }
+                return;
+            }
+
+            if(Mouse.current!=null)
+            {
+                Vector2 p=Mouse.current.position.ReadValue();
+                if(Mouse.current.leftButton.isPressed && p.y>Screen.height*.30f && p.y<Screen.height*.78f)
+                {
+                    Vector2 d=Mouse.current.delta.ReadValue();
+                    menuYaw-=d.x*.22f;
+                    menuPitch=Mathf.Clamp(menuPitch+d.y*.14f,-34f,34f);
+                    menuDragging=d.sqrMagnitude>.01f;
+                }
+
+                float scroll=Mouse.current.scroll.ReadValue().y;
+                if(Mathf.Abs(scroll)>1f) menuZoom=Mathf.Clamp(menuZoom-scroll*.0025f,4.2f,8.2f);
+            }
         }
 
         Material CloneMenuMat(Material source,Color color,float metallic,float smoothness,Color emission)
@@ -863,14 +979,8 @@ namespace RecoilRivals2
         void DestroyMenu3D()
         {
             menuGunRoot=null;
+            menuGunModel=null;
             menuCamera=null;
-            menuWeaponView=null;
-            if(menuRenderTexture!=null)
-            {
-                menuRenderTexture.Release();
-                Destroy(menuRenderTexture);
-                menuRenderTexture=null;
-            }
             if(menu3DRoot!=null)
             {
                 Destroy(menu3DRoot);

@@ -22,6 +22,42 @@ jobs:
           fetch-depth: 0
           lfs: true
 
+      - name: Import real pistol asset from runner PC
+        shell: powershell
+        run: |
+          $candidates = @(
+            (Join-Path $env:USERPROFILE "Downloads\pistol-9mm.zip"),
+            (Join-Path $env:USERPROFILE "Desktop\pistol-9mm.zip"),
+            (Join-Path $env:USERPROFILE "Documents\pistol-9mm.zip"),
+            (Join-Path $env:USERPROFILE "OneDrive\Downloads\pistol-9mm.zip"),
+            (Join-Path $env:USERPROFILE "OneDrive\Documents\pistol-9mm.zip"),
+            (Join-Path $env:USERPROFILE "OneDrive\Documenten\pistol-9mm.zip")
+          )
+
+          $zip = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+
+          if (-not $zip) {
+            $zip = Get-ChildItem -Path $env:USERPROFILE -Filter "pistol-9mm.zip" -File -Recurse -ErrorAction SilentlyContinue |
+              Select-Object -First 1 -ExpandProperty FullName
+          }
+
+          if (-not $zip) {
+            throw "pistol-9mm.zip was not found on this PC. Put it in your Downloads folder and rerun the workflow."
+          }
+
+          $destination = Join-Path $env:GITHUB_WORKSPACE "Assets\Imported\Pistol9mm"
+          if (Test-Path $destination) { Remove-Item $destination -Recurse -Force }
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          Expand-Archive -Path $zip -DestinationPath $destination -Force
+
+          $fbx = Join-Path $destination "source\HIpistol.fbx"
+          if (-not (Test-Path $fbx)) {
+            throw "The ZIP was found but source\HIpistol.fbx is missing."
+          }
+
+          Write-Host "Real pistol asset imported from: $zip"
+          Write-Host "FBX: $fbx"
+
       - name: Find Unity and verify Android support
         shell: powershell
         run: |
