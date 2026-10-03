@@ -96,6 +96,7 @@ namespace RecoilRivals2
 
         GameObject gameplay3DRoot;
         Camera gameplayWeaponCamera;
+        RenderTexture gameplayWeaponTexture;
         Transform gameplayWeaponPivot;
         Transform gameplayWeaponModel;
         float gameplayWeaponKick;
@@ -360,7 +361,6 @@ namespace RecoilRivals2
             obstacles.Clear();
             ClearLayers();
 
-            BuildGameplay3DWeapon();
 
             AddText(worldLayer, "RECOIL RIVALS", 20, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.045f,.94f), new Vector2(.40f,.985f), muted);
             heartsText = AddText(worldLayer, "♥  ♥  ♥", 32, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.045f,.885f), new Vector2(.35f,.94f), red);
@@ -368,7 +368,7 @@ namespace RecoilRivals2
             enemiesText = AddText(worldLayer, "TARGETS 0", 22, FontStyle.Bold, TextAnchor.MiddleRight, new Vector2(.62f,.885f), new Vector2(.955f,.94f), orange);
             coinText = AddText(worldLayer, "◈ "+coins, 20, FontStyle.Bold, TextAnchor.MiddleRight, new Vector2(.70f,.94f), new Vector2(.955f,.985f), muted);
 
-            arena = AddPanel(worldLayer,"ARENA",new Vector2(.045f,.115f),new Vector2(.955f,.87f),new Color(.027f,.035f,.048f,.30f),rounded);
+            arena = AddPanel(worldLayer,"ARENA",new Vector2(.045f,.115f),new Vector2(.955f,.87f),new Color(.027f,.035f,.048f,1f),rounded);
             var frame=arena.gameObject.AddComponent<Outline>();
             frame.effectColor=new Color(.10f,.34f,.36f,.9f);
             frame.effectDistance=new Vector2(3f,-3f);
@@ -385,10 +385,13 @@ namespace RecoilRivals2
             playerAngle = 14f;
             playerAngularVel = 0f;
             playerRoot = NewRect("PLAYER", arenaContent);
-            SetArenaTransform(playerRoot, playerPos, new Vector2(170,80), playerAngle);
+            SetArenaTransform(playerRoot, playerPos, new Vector2(190,130), playerAngle);
 
-            aimRing = AddImage(arenaContent,"Player Ring",Vector2.zero,Vector2.zero,new Color(.1f,.95f,.80f,.12f),circle);
-            aimRing.sizeDelta=new Vector2(210,210);
+            BuildGameplay3DWeapon();
+
+            aimRing = AddImage(arenaContent,"Player Ring",Vector2.zero,Vector2.zero,new Color(.1f,.95f,.80f,.035f),circle);
+            aimRing.sizeDelta=new Vector2(145,145);
+            aimRing.SetAsFirstSibling();
             aimRing.anchorMin=aimRing.anchorMax=new Vector2(.5f,.5f);
             aimRing.pivot=new Vector2(.5f,.5f);
 
@@ -399,17 +402,23 @@ namespace RecoilRivals2
 
         void AddArenaDetail()
         {
-            for(int i=1;i<6;i++)
+            // Opaque floor panels, recessed seams and perimeter light strips.
+            for(int row=0;row<9;row++)
+            for(int col=0;col<4;col++)
             {
-                float y=.12f+i*.145f;
-                AddImage(arenaContent,"Horizontal Rail",new Vector2(.03f,y),new Vector2(.97f,y+.003f),new Color(.10f,.18f,.21f,.42f),null);
+                float x=.035f+col*.2325f, y=.025f+row*.105f;
+                float shade=((row+col)%2==0)?.045f:.052f;
+                AddPanel(arenaContent,"Floor Tile",new Vector2(x,y),new Vector2(x+.225f,y+.097f),
+                    new Color(shade,shade+.014f,shade+.024f,1f),rounded);
             }
-            for(int i=1;i<4;i++)
+            AddPanel(arenaContent,"Left Wall",new Vector2(0,0),new Vector2(.023f,1),panel2,null);
+            AddPanel(arenaContent,"Right Wall",new Vector2(.977f,0),Vector2.one,panel2,null);
+            for(int i=0;i<6;i++)
             {
-                float x=.08f+i*.21f;
-                AddImage(arenaContent,"Vertical Rail",new Vector2(x,.03f),new Vector2(x+.003f,.97f),new Color(.08f,.14f,.17f,.25f),null);
+                float y=.055f+i*.16f;
+                AddImage(arenaContent,"Wall Light",new Vector2(.006f,y),new Vector2(.012f,y+.07f),cyanSoft,null);
+                AddImage(arenaContent,"Wall Light",new Vector2(.988f,y),new Vector2(.994f,y+.07f),cyanSoft,null);
             }
-
             var tag=AddPanel(arenaContent,"Sector",new Vector2(.035f,.91f),new Vector2(.27f,.965f),new Color(.06f,.085f,.105f,.95f),rounded);
             AddText(tag,"SECTOR "+level.ToString("00"),16,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.05f,.1f),new Vector2(.95f,.9f),cyanSoft);
         }
@@ -466,6 +475,8 @@ namespace RecoilRivals2
 
             var hpBg=AddPanel(e.root,"HP BG",new Vector2(.18f,1.06f),new Vector2(.82f,1.15f),new Color(.08f,.09f,.11f,.95f),circle);
             e.hpFill=AddImage(hpBg,"HP",new Vector2(.03f,.18f),new Vector2(.97f,.82f),main,circle).GetComponent<Image>();
+            e.hpFill.type=Image.Type.Filled;
+            e.hpFill.fillMethod=Image.FillMethod.Horizontal;
             e.fireTimer=.9f+(int)type*.18f+enemies.Count*.15f;
             enemies.Add(e);
         }
@@ -484,7 +495,7 @@ namespace RecoilRivals2
             if(playerPos.y<-boundY){playerPos.y=-boundY;playerVel.y=Mathf.Abs(playerVel.y)*.58f;}
             if(playerPos.y> boundY){playerPos.y= boundY;playerVel.y=-Mathf.Abs(playerVel.y)*.58f;}
 
-            SetArenaTransform(playerRoot,playerPos,new Vector2(170,80),playerAngle);
+            SetArenaTransform(playerRoot,playerPos,new Vector2(190,130),playerAngle);
             if(aimRing!=null)
             {
                 aimRing.anchoredPosition=ToArenaPixels(playerPos);
@@ -553,12 +564,10 @@ namespace RecoilRivals2
             root.sizeDelta=playerOwned?new Vector2(20,20):new Vector2(23,23);
             root.anchoredPosition=ToArenaPixels(pos);
 
-            var trail=AddImage(arenaContent,"Trail",Vector2.zero,Vector2.zero,new Color(color.r,color.g,color.b,.22f),circle);
-            trail.anchorMin=trail.anchorMax=new Vector2(.5f,.5f);
-            trail.pivot=new Vector2(.5f,.5f);
-            trail.sizeDelta=new Vector2(10,55);
-            trail.anchoredPosition=root.anchoredPosition;
-            trail.SetAsFirstSibling();
+            // A child tracer moves and is destroyed with its bullet.
+            var trail=AddImage(root,"Trail",new Vector2(-1.8f,.30f),new Vector2(.4f,.70f),
+                new Color(color.r,color.g,color.b,.35f),circle);
+            root.localRotation=Quaternion.Euler(0,0,Mathf.Atan2(vel.y,vel.x)*Mathf.Rad2Deg);
 
             var b=new Bullet{root=root,pos=pos,vel=vel,life=3.8f,damage=damage,playerOwned=playerOwned,bounces=bounces};
             bullets.Add(b);
@@ -607,7 +616,11 @@ namespace RecoilRivals2
                     if(b.root!=null) Destroy(b.root.gameObject);
                     bullets.RemoveAt(i);
                 }
-                else if(b.root!=null) b.root.anchoredPosition=ToArenaPixels(b.pos);
+                else if(b.root!=null)
+                {
+                    b.root.anchoredPosition=ToArenaPixels(b.pos);
+                    b.root.localRotation=Quaternion.Euler(0,0,Mathf.Atan2(b.vel.y,b.vel.x)*Mathf.Rad2Deg);
+                }
             }
         }
 
@@ -906,9 +919,16 @@ namespace RecoilRivals2
             camGO.transform.SetParent(gameplay3DRoot.transform,false);
             gameplayWeaponCamera=camGO.AddComponent<Camera>();
             gameplayWeaponCamera.clearFlags=CameraClearFlags.SolidColor;
-            gameplayWeaponCamera.backgroundColor=bg;
+            gameplayWeaponCamera.backgroundColor=Color.clear;
+            gameplayWeaponCamera.cullingMask=1<<30;
+            gameplayWeaponTexture=new RenderTexture(512,352,24,RenderTextureFormat.ARGB32);
+            gameplayWeaponTexture.Create();
+            gameplayWeaponCamera.targetTexture=gameplayWeaponTexture;
+            var weaponImage=playerRoot.gameObject.AddComponent<RawImage>();
+            weaponImage.texture=gameplayWeaponTexture;
+            weaponImage.raycastTarget=false;
             gameplayWeaponCamera.orthographic=true;
-            gameplayWeaponCamera.orthographicSize=5f;
+            gameplayWeaponCamera.orthographicSize=.65f;
             gameplayWeaponCamera.nearClipPlane=.05f;
             gameplayWeaponCamera.farClipPlane=40f;
             gameplayWeaponCamera.depth=-30f;
@@ -941,6 +961,7 @@ namespace RecoilRivals2
             gameplayWeaponModel=model.transform;
 
             KeepOnlyPrimaryWeaponGroup(model,selectedWeapon==WeaponType.Shotgun);
+            foreach(var child in model.GetComponentsInChildren<Transform>(true)) child.gameObject.layer=30;
 
             foreach(var renderer in model.GetComponentsInChildren<Renderer>(true))
             {
@@ -1002,14 +1023,9 @@ namespace RecoilRivals2
         {
             if(gameplayWeaponPivot==null || gameplayWeaponCamera==null) return;
 
-            float vx=.5f+playerPos.x*.455f;
-            float vy=.4925f+playerPos.y*.3775f;
-            Vector3 world=gameplayWeaponCamera.ViewportToWorldPoint(new Vector3(vx,vy,10f));
-
-            float r=playerAngle*Mathf.Deg2Rad;
-            Vector3 recoil=new Vector3(-Mathf.Cos(r),-Mathf.Sin(r),0f)*gameplayWeaponKick;
-            gameplayWeaponPivot.position=new Vector3(world.x+recoil.x,world.y+recoil.y,0f);
-            gameplayWeaponPivot.rotation=Quaternion.Euler(0f,0f,playerAngle);
+            // UI maps the render texture to the same position and angle as the hitbox.
+            gameplayWeaponPivot.localPosition=new Vector3(-gameplayWeaponKick,0f,0f);
+            gameplayWeaponPivot.localRotation=Quaternion.identity;
 
             gameplayWeaponKick=Mathf.MoveTowards(gameplayWeaponKick,0f,dt*1.65f);
         }
@@ -1020,6 +1036,12 @@ namespace RecoilRivals2
             gameplayWeaponModel=null;
             gameplayWeaponCamera=null;
             gameplayWeaponKick=0f;
+            if(gameplayWeaponTexture!=null)
+            {
+                gameplayWeaponTexture.Release();
+                Destroy(gameplayWeaponTexture);
+                gameplayWeaponTexture=null;
+            }
             if(gameplay3DRoot!=null)
             {
                 Destroy(gameplay3DRoot);
@@ -1299,6 +1321,7 @@ namespace RecoilRivals2
 
             var btn=outer.gameObject.AddComponent<Button>();
             btn.targetGraphic=outer.GetComponent<Image>();
+            btn.targetGraphic.raycastTarget=true;
             btn.onClick.AddListener(()=>action());
             var cb=btn.colors;
             cb.normalColor=Color.white;
@@ -1417,7 +1440,7 @@ namespace RecoilRivals2
             var go=new GameObject(name,typeof(RectTransform),typeof(Image));
             go.transform.SetParent(parent,false);
             var rt=go.GetComponent<RectTransform>();Stretch(rt,min,max);
-            var img=go.GetComponent<Image>();img.color=color;img.sprite=sprite;img.type=sprite!=null?Image.Type.Sliced:Image.Type.Simple;
+            var img=go.GetComponent<Image>();img.color=color;img.sprite=sprite;img.type=Image.Type.Simple;img.raycastTarget=false;
             return rt;
         }
 
@@ -1442,6 +1465,7 @@ namespace RecoilRivals2
             var rt=AddPanel(parent,"Button "+label,min,max,bgColor,rounded);
             var btn=rt.gameObject.AddComponent<Button>();
             btn.targetGraphic=rt.GetComponent<Image>();
+            btn.targetGraphic.raycastTarget=true;
             btn.onClick.AddListener(()=>action());
             var outline=rt.gameObject.AddComponent<Outline>();outline.effectColor=new Color(0,0,0,.38f);outline.effectDistance=new Vector2(2,-2);
             AddText(rt,label,size,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.04f,.08f),new Vector2(.96f,.92f),textColor);
