@@ -135,6 +135,11 @@ namespace RecoilRivals2
             DontDestroyOnLoad(gameObject);
             Application.targetFrameRate = 120;
             QualitySettings.vSyncCount = 0;
+            QualitySettings.globalTextureMipmapLimit = 0;
+            QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
+            QualitySettings.antiAliasing = 4;
+            QualitySettings.shadows = ShadowQuality.All;
+            QualitySettings.shadowResolution = ShadowResolution.VeryHigh;
             Screen.orientation = ScreenOrientation.Portrait;
 
             level = Mathf.Clamp(PlayerPrefs.GetInt("RR2_Level", 1), 1, MaxLevel);
@@ -782,20 +787,20 @@ namespace RecoilRivals2
             keyGO.transform.SetParent(menu3DRoot.transform,false);
             keyGO.transform.rotation=Quaternion.Euler(32f,-36f,0f);
             var key=keyGO.AddComponent<Light>();
-            key.type=LightType.Directional; key.intensity=1.55f; key.color=new Color(.83f,.90f,1f);
+            key.type=LightType.Directional; key.intensity=1.85f; key.color=new Color(.88f,.94f,1f);
             key.shadows=LightShadows.Soft;
 
             var rimGO=new GameObject("Cyan Rim");
             rimGO.transform.SetParent(menu3DRoot.transform,false);
             rimGO.transform.position=new Vector3(-2.7f,1.3f,-1.5f);
             var rim=rimGO.AddComponent<Light>();
-            rim.type=LightType.Point; rim.range=8f; rim.intensity=4.2f; rim.color=new Color(.04f,.85f,.78f);
+            rim.type=LightType.Point; rim.range=8f; rim.intensity=3.4f; rim.color=new Color(.04f,.85f,.78f);
 
             var warmGO=new GameObject("Warm Fill");
             warmGO.transform.SetParent(menu3DRoot.transform,false);
             warmGO.transform.position=new Vector3(2.8f,-.35f,-.8f);
             var warm=warmGO.AddComponent<Light>();
-            warm.type=LightType.Point; warm.range=7f; warm.intensity=2.1f; warm.color=new Color(1f,.35f,.12f);
+            warm.type=LightType.Point; warm.range=7f; warm.intensity=1.55f; warm.color=new Color(1f,.35f,.12f);
 
             GameObject selectedPrefab = selectedWeapon==WeaponType.Shotgun ? menuShotgunPrefab : menuWeaponPrefab;
             Material selectedMaterial = selectedWeapon==WeaponType.Shotgun ? menuShotgunMaterial : menuWeaponMaterial;
@@ -836,14 +841,39 @@ namespace RecoilRivals2
 
         void KeepOnlyPrimaryWeaponGroup(GameObject model,bool shotgun)
         {
+            // This pistol FBX contains two complete groups:
+            // HIpistol (the assembled weapon) and HIpistol_1 (an alternate/exploded copy).
+            // Kill the duplicate group first so only ONE complete gun can ever render.
+            if(!shotgun)
+            {
+                foreach(var t in model.GetComponentsInChildren<Transform>(true))
+                {
+                    if(string.Equals(t.name,"HIpistol_1",StringComparison.OrdinalIgnoreCase))
+                        t.gameObject.SetActive(false);
+                }
+
+                foreach(var r in model.GetComponentsInChildren<Renderer>(true))
+                {
+                    if(r.name.EndsWith("_2",StringComparison.OrdinalIgnoreCase))
+                        r.enabled=false;
+                }
+            }
+
             string wanted=shotgun ? "shotgun" : "HIpistol";
             Transform primary=null;
             int bestCount=int.MaxValue;
 
             foreach(var t in model.GetComponentsInChildren<Transform>(true))
             {
+                if(!t.gameObject.activeInHierarchy) continue;
                 if(!string.Equals(t.name,wanted,StringComparison.OrdinalIgnoreCase)) continue;
-                int count=t.GetComponentsInChildren<Renderer>(true).Length;
+
+                int count=0;
+                foreach(var r in t.GetComponentsInChildren<Renderer>(true))
+                    if(r.enabled && r.gameObject.activeInHierarchy) count++;
+
+                // Prefer the smallest exact-name subtree with renderers.
+                // This avoids accidentally picking the imported FBX wrapper root.
                 if(count>0 && count<bestCount)
                 {
                     primary=t;
@@ -855,6 +885,7 @@ namespace RecoilRivals2
 
             foreach(var r in model.GetComponentsInChildren<Renderer>(true))
             {
+                if(!r.gameObject.activeInHierarchy) { r.enabled=false; continue; }
                 bool keep=r.transform==primary || r.transform.IsChildOf(primary);
                 r.enabled=keep;
             }
@@ -1041,10 +1072,16 @@ namespace RecoilRivals2
 
         Bounds GetRendererBounds(GameObject model)
         {
-            var rs=model.GetComponentsInChildren<Renderer>(true);
-            if(rs.Length==0) return new Bounds(model.transform.position,Vector3.one);
-            Bounds b=rs[0].bounds;
-            for(int i=1;i<rs.Length;i++) b.Encapsulate(rs[i].bounds);
+            Renderer first=null;
+            Bounds b=new Bounds(model.transform.position,Vector3.one*.01f);
+
+            foreach(var r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                if(!r.enabled || !r.gameObject.activeInHierarchy) continue;
+                if(first==null){ first=r; b=r.bounds; }
+                else b.Encapsulate(r.bounds);
+            }
+
             return b;
         }
 
