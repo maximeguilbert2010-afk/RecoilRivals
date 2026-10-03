@@ -73,6 +73,14 @@ namespace RecoilRivals2
         Sprite rounded;
         Sprite circle;
 
+        [SerializeField] public Material menuLitTemplate;
+        GameObject menu3DRoot;
+        Camera menuCamera;
+        RenderTexture menuRenderTexture;
+        Transform menuGunRoot;
+        RawImage menuWeaponView;
+        float menuAnimTime;
+
         readonly List<Enemy> enemies = new List<Enemy>();
         readonly List<Bullet> bullets = new List<Bullet>();
         readonly List<Fx> effects = new List<Fx>();
@@ -174,6 +182,16 @@ namespace RecoilRivals2
 
         void Update()
         {
+            if (mode == ScreenMode.Menu && menuGunRoot != null)
+            {
+                menuAnimTime += Time.unscaledDeltaTime;
+                float yaw = Mathf.Sin(menuAnimTime * .55f) * 6.5f;
+                float pitch = 5f + Mathf.Sin(menuAnimTime * .38f) * 1.5f;
+                float roll = Mathf.Sin(menuAnimTime * .72f) * 1.2f;
+                menuGunRoot.localRotation = Quaternion.Euler(pitch, 18f + yaw, roll);
+                menuGunRoot.localPosition = new Vector3(0f, .10f + Mathf.Sin(menuAnimTime * .9f) * .035f, 0f);
+            }
+
             if (mode == ScreenMode.Playing)
             {
                 float dt = Mathf.Min(Time.deltaTime, .035f);
@@ -200,27 +218,43 @@ namespace RecoilRivals2
             resolving = false;
             ClearLayers();
 
-            AddImage(worldLayer, "BG", Vector2.zero, Vector2.one, bg, null);
-            AddImage(worldLayer, "Top Glow", new Vector2(0,.76f), new Vector2(1,1), new Color(.02f,.18f,.18f,.32f), null);
-            AddDecorativeRails(worldLayer);
+            // Deliberate, restrained industrial presentation instead of generated-looking decoration.
+            AddImage(worldLayer, "Menu BG", Vector2.zero, Vector2.one, new Color(.012f,.016f,.023f,1f), null);
+            AddImage(worldLayer, "Upper Shade", new Vector2(0,.68f), new Vector2(1,1), new Color(.025f,.055f,.070f,.86f), null);
+            AddImage(worldLayer, "Center Glow", new Vector2(.05f,.28f), new Vector2(.95f,.73f), new Color(.018f,.105f,.115f,.36f), rounded);
 
-            AddText(worldLayer, "RECOIL", 105, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(.06f,.80f), new Vector2(.94f,.90f), white);
-            AddText(worldLayer, "RIVALS", 105, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(.06f,.735f), new Vector2(.94f,.835f), cyan);
-            AddText(worldLayer, "TACTICAL RECOIL DUELS", 24, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(.10f,.69f), new Vector2(.90f,.73f), muted);
+            // Thin architectural rails. Kept symmetrical and sparse on purpose.
+            AddImage(worldLayer,"Rail L",new Vector2(.045f,.18f),new Vector2(.048f,.89f),new Color(.12f,.42f,.44f,.55f),null);
+            AddImage(worldLayer,"Rail R",new Vector2(.952f,.18f),new Vector2(.955f,.89f),new Color(.12f,.42f,.44f,.55f),null);
+            AddImage(worldLayer,"Header Line",new Vector2(.06f,.842f),new Vector2(.94f,.845f),new Color(.16f,.73f,.67f,.60f),null);
 
-            AddChip(worldLayer, "LV "+level, new Vector2(.055f,.925f), new Vector2(.30f,.975f), cyan);
-            AddChip(worldLayer, "◈ "+coins, new Vector2(.70f,.925f), new Vector2(.945f,.975f), orange);
+            // Compact top HUD.
+            AddText(worldLayer,"RR // TACTICAL SYSTEM",18,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.065f,.945f),new Vector2(.48f,.978f),new Color(.38f,.56f,.61f,1f));
+            AddTechChip(worldLayer,"LV "+level,new Vector2(.065f,.890f),new Vector2(.285f,.938f),cyan);
+            AddTechChip(worldLayer,"◈  "+coins,new Vector2(.715f,.890f),new Vector2(.935f,.938f),orange);
 
-            var weaponCard = AddPanel(worldLayer, "Weapon Card", new Vector2(.08f,.36f), new Vector2(.92f,.64f), new Color(.025f,.033f,.045f,.98f), rounded);
-            AddImage(weaponCard, "Card Top", new Vector2(0,.86f), new Vector2(1,1), new Color(.055f,.075f,.09f,1f), null);
-            AddText(weaponCard, "ACTIVE LOADOUT", 22, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.06f,.87f), new Vector2(.50f,.98f), muted);
-            AddText(weaponCard, weapons[(int)selectedWeapon].name, 36, FontStyle.Bold, TextAnchor.MiddleLeft, new Vector2(.06f,.08f), new Vector2(.66f,.26f), white);
-            BuildWeaponGraphic(weaponCard, new Vector2(.52f,.29f), new Vector2(.94f,.83f), cyan, white, selectedWeapon, false);
+            // Logo: two clean lines, no giant random blocks.
+            AddText(worldLayer,"RECOIL",86,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.755f),new Vector2(.92f,.835f),white);
+            AddText(worldLayer,"R  I  V  A  L  S",34,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.12f,.710f),new Vector2(.88f,.758f),cyan);
+            AddText(worldLayer,"MASTER THE KICK",18,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.28f,.682f),new Vector2(.72f,.712f),muted);
 
-            AddButton(worldLayer, "PLAY  /  LEVEL "+level, new Vector2(.09f,.19f), new Vector2(.91f,.285f), cyan, new Color(.01f,.06f,.055f), () => StartLevel(level), 40);
-            AddButton(worldLayer, "LOADOUT", new Vector2(.20f,.105f), new Vector2(.80f,.165f), panel2, white, ShowLoadout, 27);
+            // Hero weapon bay.
+            var bay=AddPanel(worldLayer,"Hero Weapon Bay",new Vector2(.065f,.315f),new Vector2(.935f,.665f),new Color(.018f,.025f,.034f,.98f),rounded);
+            var bayOutline=bay.gameObject.AddComponent<Outline>();
+            bayOutline.effectColor=new Color(.10f,.46f,.47f,.72f);
+            bayOutline.effectDistance=new Vector2(2f,-2f);
+            AddImage(bay,"Top Accent",new Vector2(.035f,.94f),new Vector2(.965f,.952f),new Color(.12f,.95f,.82f,.82f),rounded);
+            AddText(bay,"ACTIVE WEAPON",18,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.045f,.875f),new Vector2(.42f,.94f),muted);
+            AddText(bay,weapons[(int)selectedWeapon].name,30,FontStyle.Bold,TextAnchor.MiddleLeft,new Vector2(.045f,.055f),new Vector2(.60f,.15f),white);
+            AddText(bay,"RECOIL  "+Mathf.RoundToInt(weapons[(int)selectedWeapon].recoil*100)+"    DMG  "+weapons[(int)selectedWeapon].damage.ToString("0.0"),16,FontStyle.Bold,TextAnchor.MiddleRight,new Vector2(.47f,.055f),new Vector2(.955f,.15f),new Color(.40f,.58f,.62f,1f));
 
-            AddText(worldLayer, "TAP TO FIRE  •  RECOIL TO MOVE", 22, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(.05f,.035f), new Vector2(.95f,.075f), new Color(.30f,.45f,.50f,1f));
+            BuildMenu3DView(bay);
+
+            // Proper button hierarchy: one dominant action, one secondary action.
+            AddTechButton(worldLayer,"PLAY",new Vector2(.075f,.185f),new Vector2(.925f,.275f),true,()=>StartLevel(level),38);
+            AddTechButton(worldLayer,"LOADOUT",new Vector2(.18f,.105f),new Vector2(.82f,.165f),false,ShowLoadout,25);
+
+            AddText(worldLayer,"TAP TO FIRE  •  RECOIL IS MOVEMENT",16,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.10f,.038f),new Vector2(.90f,.070f),new Color(.30f,.44f,.49f,1f));
         }
 
         void ShowLoadout()
@@ -629,6 +663,259 @@ namespace RecoilRivals2
             else arena.anchoredPosition=Vector2.zero;
         }
 
+        void BuildMenu3DView(RectTransform bay)
+        {
+            DestroyMenu3D();
+
+            menu3DRoot = new GameObject("MENU_3D_SHOWCASE");
+            menu3DRoot.transform.SetParent(transform,false);
+
+            menuRenderTexture = new RenderTexture(900,620,24,RenderTextureFormat.ARGB32);
+            menuRenderTexture.name="RR Menu Weapon RT";
+            menuRenderTexture.antiAliasing=4;
+            menuRenderTexture.Create();
+
+            var rawGO=new GameObject("3D Weapon View",typeof(RectTransform),typeof(RawImage));
+            rawGO.transform.SetParent(bay,false);
+            var rawRT=rawGO.GetComponent<RectTransform>();
+            Stretch(rawRT,new Vector2(.035f,.16f),new Vector2(.965f,.87f));
+            menuWeaponView=rawGO.GetComponent<RawImage>();
+            menuWeaponView.texture=menuRenderTexture;
+            menuWeaponView.color=Color.white;
+            menuWeaponView.raycastTarget=false;
+
+            var camGO=new GameObject("Menu Weapon Camera");
+            camGO.transform.SetParent(menu3DRoot.transform,false);
+            menuCamera=camGO.AddComponent<Camera>();
+            menuCamera.targetTexture=menuRenderTexture;
+            menuCamera.clearFlags=CameraClearFlags.SolidColor;
+            menuCamera.backgroundColor=new Color(0,0,0,0);
+            menuCamera.fieldOfView=25f;
+            menuCamera.nearClipPlane=.05f;
+            menuCamera.farClipPlane=50f;
+            menuCamera.transform.position=new Vector3(0,.15f,-7.3f);
+            menuCamera.transform.LookAt(new Vector3(.12f,.05f,0));
+
+            var keyGO=new GameObject("Key Light");
+            keyGO.transform.SetParent(menu3DRoot.transform,false);
+            keyGO.transform.rotation=Quaternion.Euler(28f,-32f,0);
+            var key=keyGO.AddComponent<Light>();
+            key.type=LightType.Directional;
+            key.intensity=1.75f;
+            key.color=new Color(.83f,.94f,1f);
+
+            var rimGO=new GameObject("Rim Light");
+            rimGO.transform.SetParent(menu3DRoot.transform,false);
+            rimGO.transform.position=new Vector3(-2.3f,1.4f,-1.6f);
+            var rim=rimGO.AddComponent<Light>();
+            rim.type=LightType.Point;
+            rim.range=8f;
+            rim.intensity=5.0f;
+            rim.color=new Color(.05f,1f,.82f);
+
+            var warmGO=new GameObject("Warm Fill");
+            warmGO.transform.SetParent(menu3DRoot.transform,false);
+            warmGO.transform.position=new Vector3(2.7f,-.8f,-1.8f);
+            var warm=warmGO.AddComponent<Light>();
+            warm.type=LightType.Point;
+            warm.range=7f;
+            warm.intensity=2.2f;
+            warm.color=new Color(1f,.36f,.12f);
+
+            var lit = menuLitTemplate != null ? menuLitTemplate : Resources.GetBuiltinResource<Material>("Default-Material.mat");
+            if(lit==null) throw new InvalidOperationException("Menu material template is missing.");
+
+            Material dark=CloneMenuMat(lit,new Color(.055f,.065f,.075f),.72f,.78f,Color.black);
+            Material metal=CloneMenuMat(lit,new Color(.34f,.39f,.42f),.82f,.70f,Color.black);
+            Material lightMetal=CloneMenuMat(lit,new Color(.67f,.72f,.74f),.88f,.62f,Color.black);
+            Material accent=CloneMenuMat(lit,new Color(.04f,.62f,.58f),.56f,.58f,new Color(.04f,.95f,.82f)*1.4f);
+            Material black=CloneMenuMat(lit,new Color(.018f,.022f,.026f),.58f,.82f,Color.black);
+
+            // Stage/pedestal.
+            CreateCylinder(menu3DRoot.transform,"Pedestal Base",new Vector3(0,-1.12f,.15f),new Vector3(2.50f,.14f,1.40f),dark,64);
+            CreateCylinder(menu3DRoot.transform,"Pedestal Ring",new Vector3(0,-.99f,.15f),new Vector3(2.28f,.045f,1.25f),accent,64);
+            CreatePart(menu3DRoot.transform,"Pedestal Deck",new Vector3(0,-.91f,.15f),new Vector3(4.10f,.12f,1.72f),black,null);
+
+            menuGunRoot=new GameObject("Hero Gun").transform;
+            menuGunRoot.SetParent(menu3DRoot.transform,false);
+            menuGunRoot.localPosition=new Vector3(0,.10f,0);
+            CreateMenuGunModel(menuGunRoot,(int)selectedWeapon,dark,metal,lightMetal,accent,black);
+        }
+
+        Material CloneMenuMat(Material source,Color color,float metallic,float smoothness,Color emission)
+        {
+            var m=new Material(source);
+            if(m.HasProperty("_BaseColor"))m.SetColor("_BaseColor",color);
+            if(m.HasProperty("_Color"))m.SetColor("_Color",color);
+            if(m.HasProperty("_Metallic"))m.SetFloat("_Metallic",metallic);
+            if(m.HasProperty("_Smoothness"))m.SetFloat("_Smoothness",smoothness);
+            if(emission.maxColorComponent>.001f && m.HasProperty("_EmissionColor"))
+            {
+                m.EnableKeyword("_EMISSION");
+                m.SetColor("_EmissionColor",emission);
+            }
+            return m;
+        }
+
+        void CreateMenuGunModel(Transform root,int weapon,Material dark,Material metal,Material lightMetal,Material accent,Material black)
+        {
+            float longBody = weapon==2 ? 3.55f : weapon==1 ? 2.65f : 2.95f;
+            float barrel = weapon==2 ? 1.65f : weapon==1 ? 1.35f : 1.50f;
+
+            // Main receiver - intentionally layered like a designed hard-surface asset.
+            CreatePart(root,"Receiver Core",new Vector3(-.12f,.08f,0),new Vector3(longBody,.62f,.58f),metal,null);
+            CreatePart(root,"Upper Receiver",new Vector3(.12f,.38f,-.02f),new Vector3(longBody*.82f,.20f,.50f),lightMetal,null);
+            CreatePart(root,"Lower Receiver",new Vector3(-.24f,-.22f,.02f),new Vector3(longBody*.60f,.22f,.46f),dark,null);
+            CreatePart(root,"Rear Block",new Vector3(-longBody*.55f,.10f,.02f),new Vector3(.64f,.70f,.62f),black,null);
+
+            // Barrel assembly.
+            CreateCylinder(root,"Outer Barrel",new Vector3(longBody*.56f+barrel*.40f,.17f,0),new Vector3(.26f,barrel*.50f,.26f),dark,32,Quaternion.Euler(0,0,90));
+            CreateCylinder(root,"Inner Barrel",new Vector3(longBody*.56f+barrel*.84f,.17f,0),new Vector3(.15f,barrel*.18f,.15f),accent,32,Quaternion.Euler(0,0,90));
+            CreateCylinder(root,"Muzzle",new Vector3(longBody*.56f+barrel,.17f,0),new Vector3(.34f,.18f,.34f),black,32,Quaternion.Euler(0,0,90));
+
+            // Handguard and lower rail.
+            CreatePart(root,"Handguard",new Vector3(longBody*.38f,-.06f,0),new Vector3(longBody*.55f,.42f,.68f),dark,null);
+            for(int i=0;i<4;i++)
+                CreatePart(root,"Rail Vent "+i,new Vector3(longBody*.18f+i*.34f,.31f,-.31f),new Vector3(.20f,.07f,.04f),accent,null);
+
+            // Grip with real depth and angle.
+            var grip=CreatePart(root,"Grip",new Vector3(-.35f,-.70f,.03f),new Vector3(.48f,1.15f,.50f),black,null);
+            grip.transform.localRotation=Quaternion.Euler(0,0,-14f);
+            CreatePart(grip.transform,"Grip Insert",new Vector3(0,-.05f,-.27f),new Vector3(.30f,.76f,.05f),dark,null);
+
+            // Magazine/cylinder distinguishes weapon silhouettes.
+            if(weapon==1)
+            {
+                CreateCylinder(root,"Revolver Cylinder",new Vector3(.15f,-.12f,0),new Vector3(.46f,.40f,.46f),lightMetal,24,Quaternion.Euler(90,0,0));
+                for(int i=0;i<6;i++)
+                {
+                    float a=i*60f*Mathf.Deg2Rad;
+                    CreateCylinder(root,"Chamber "+i,new Vector3(.15f+Mathf.Cos(a)*.24f,-.12f,Mathf.Sin(a)*.24f),new Vector3(.08f,.12f,.08f),black,16,Quaternion.Euler(90,0,0));
+                }
+            }
+            else
+            {
+                var mag=CreatePart(root,"Magazine",new Vector3(.34f,-.72f,.02f),new Vector3(.58f,1.18f,.46f),black,null);
+                mag.transform.localRotation=Quaternion.Euler(0,0,weapon==2?4f:8f);
+                CreatePart(mag.transform,"Magazine Accent",new Vector3(.03f,-.04f,-.26f),new Vector3(.32f,.72f,.05f),accent,null);
+            }
+
+            // Sight and top rail.
+            CreatePart(root,"Top Rail",new Vector3(-.10f,.56f,0),new Vector3(longBody*.65f,.08f,.38f),black,null);
+            CreatePart(root,"Rear Sight",new Vector3(-.72f,.72f,0),new Vector3(.24f,.30f,.42f),dark,null);
+            CreatePart(root,"Front Sight",new Vector3(.86f,.67f,0),new Vector3(.18f,.25f,.36f),dark,null);
+
+            // Stock for shotgun, compact rear brace for others.
+            if(weapon==2)
+            {
+                var stock=CreatePart(root,"Stock",new Vector3(-2.18f,-.02f,0),new Vector3(1.25f,.52f,.60f),dark,null);
+                stock.transform.localRotation=Quaternion.Euler(0,0,7f);
+                CreatePart(root,"Stock Pad",new Vector3(-2.82f,-.12f,0),new Vector3(.22f,.86f,.68f),black,null);
+            }
+            else
+            {
+                CreatePart(root,"Rear Brace",new Vector3(-1.78f,.08f,0),new Vector3(.82f,.30f,.50f),dark,null);
+                CreatePart(root,"Brace Accent",new Vector3(-1.94f,.08f,-.28f),new Vector3(.40f,.09f,.04f),accent,null);
+            }
+
+            // Small restrained accent strips.
+            CreatePart(root,"Side Accent A",new Vector3(.05f,.12f,-.31f),new Vector3(1.05f,.08f,.035f),accent,null);
+            CreatePart(root,"Side Accent B",new Vector3(-.80f,-.08f,-.31f),new Vector3(.42f,.06f,.035f),accent,null);
+        }
+
+        GameObject CreatePart(Transform parent,string name,Vector3 pos,Vector3 scale,Material mat,Quaternion? rotation)
+        {
+            var go=GameObject.CreatePrimitive(PrimitiveType.Cube);
+            go.name=name;
+            go.transform.SetParent(parent,false);
+            go.transform.localPosition=pos;
+            go.transform.localScale=scale;
+            if(rotation.HasValue)go.transform.localRotation=rotation.Value;
+            var col=go.GetComponent<Collider>();if(col!=null)Destroy(col);
+            var renderer=go.GetComponent<Renderer>();
+            renderer.sharedMaterial=mat;
+            renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.On;
+            renderer.receiveShadows=true;
+            return go;
+        }
+
+        GameObject CreateCylinder(Transform parent,string name,Vector3 pos,Vector3 scale,Material mat,int segments)
+        {
+            return CreateCylinder(parent,name,pos,scale,mat,segments,Quaternion.identity);
+        }
+
+        GameObject CreateCylinder(Transform parent,string name,Vector3 pos,Vector3 scale,Material mat,int segments,Quaternion rotation)
+        {
+            var go=GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+            go.name=name;
+            go.transform.SetParent(parent,false);
+            go.transform.localPosition=pos;
+            go.transform.localScale=scale;
+            go.transform.localRotation=rotation;
+            var col=go.GetComponent<Collider>();if(col!=null)Destroy(col);
+            var renderer=go.GetComponent<Renderer>();
+            renderer.sharedMaterial=mat;
+            renderer.shadowCastingMode=UnityEngine.Rendering.ShadowCastingMode.On;
+            renderer.receiveShadows=true;
+            return go;
+        }
+
+        void DestroyMenu3D()
+        {
+            menuGunRoot=null;
+            menuCamera=null;
+            menuWeaponView=null;
+            if(menuRenderTexture!=null)
+            {
+                menuRenderTexture.Release();
+                Destroy(menuRenderTexture);
+                menuRenderTexture=null;
+            }
+            if(menu3DRoot!=null)
+            {
+                Destroy(menu3DRoot);
+                menu3DRoot=null;
+            }
+        }
+
+        RectTransform AddTechChip(Transform parent,string label,Vector2 min,Vector2 max,Color accent)
+        {
+            var chip=AddPanel(parent,"Tech Chip "+label,min,max,new Color(.028f,.040f,.052f,.98f),rounded);
+            var outline=chip.gameObject.AddComponent<Outline>();
+            outline.effectColor=new Color(accent.r,accent.g,accent.b,.52f);
+            outline.effectDistance=new Vector2(1.4f,-1.4f);
+            AddImage(chip,"Chip Accent",new Vector2(.025f,.20f),new Vector2(.055f,.80f),accent,rounded);
+            AddText(chip,label,19,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.08f,.08f),new Vector2(.95f,.92f),white);
+            return chip;
+        }
+
+        RectTransform AddTechButton(Transform parent,string label,Vector2 min,Vector2 max,bool primary,Action action,int fontSize)
+        {
+            Color fill=primary?new Color(.055f,.72f,.64f,1f):new Color(.032f,.048f,.062f,1f);
+            Color edge=primary?new Color(.17f,1f,.86f,1f):new Color(.15f,.46f,.49f,1f);
+            Color txt=primary?new Color(.005f,.035f,.035f,1f):white;
+
+            var outer=AddPanel(parent,"Tech Button "+label,min,max,new Color(edge.r,edge.g,edge.b,.70f),rounded);
+            var inner=AddPanel(outer,"Inner",new Vector2(.008f,.055f),new Vector2(.992f,.945f),fill,rounded);
+            AddImage(inner,"Left Accent",new Vector2(.018f,.18f),new Vector2(.032f,.82f),edge,rounded);
+            AddImage(inner,"Right Accent",new Vector2(.968f,.18f),new Vector2(.982f,.82f),edge,rounded);
+            AddImage(inner,"Bottom Accent",new Vector2(.08f,.045f),new Vector2(.92f,.065f),new Color(edge.r,edge.g,edge.b,.65f),rounded);
+            AddText(inner,label,fontSize,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.07f,.08f),new Vector2(.87f,.92f),txt);
+            AddText(inner,primary?"›":"//",fontSize,FontStyle.Bold,TextAnchor.MiddleCenter,new Vector2(.84f,.08f),new Vector2(.97f,.92f),primary?txt:edge);
+
+            var btn=outer.gameObject.AddComponent<Button>();
+            btn.targetGraphic=outer.GetComponent<Image>();
+            btn.onClick.AddListener(()=>action());
+            var cb=btn.colors;
+            cb.normalColor=Color.white;
+            cb.highlightedColor=new Color(.94f,1f,1f,1f);
+            cb.pressedColor=new Color(.70f,.85f,.85f,1f);
+            cb.selectedColor=Color.white;
+            cb.fadeDuration=.08f;
+            btn.colors=cb;
+            return outer;
+        }
+
         void AddDecorativeRails(RectTransform parent)
         {
             for(int i=0;i<5;i++)
@@ -710,6 +997,7 @@ namespace RecoilRivals2
         void ClearLayers()
         {
             CancelInvoke();
+            DestroyMenu3D();
             for(int i=worldLayer.childCount-1;i>=0;i--) Destroy(worldLayer.GetChild(i).gameObject);
             for(int i=overlayLayer.childCount-1;i>=0;i--) Destroy(overlayLayer.GetChild(i).gameObject);
             enemies.Clear();bullets.Clear();effects.Clear();obstacles.Clear();

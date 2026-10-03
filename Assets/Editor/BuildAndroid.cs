@@ -65,7 +65,15 @@ namespace RecoilRivals.Editor
                 UnityEngine.Object.DestroyImmediate(root);
 
             var runtimeRoot = new GameObject("RECOIL_RIVALS_V2_RUNTIME");
-            runtimeRoot.AddComponent<RecoilRivals2.RRGameV2>();
+            var runtime = runtimeRoot.AddComponent<RecoilRivals2.RRGameV2>();
+
+            const string generatedFolder = "Assets/Generated";
+            if (!AssetDatabase.IsValidFolder(generatedFolder))
+                AssetDatabase.CreateFolder("Assets", "Generated");
+
+            runtime.menuLitTemplate = GetOrCreateMaterial(
+                generatedFolder + "/RR_MenuLit.mat",
+                new[] { "Universal Render Pipeline/Lit", "Universal Render Pipeline/Simple Lit", "Standard" });
 
             EditorSceneManager.MarkSceneDirty(scene);
             EditorSceneManager.SaveScene(scene);
